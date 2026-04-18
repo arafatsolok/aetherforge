@@ -33,8 +33,13 @@ RUN pip install --upgrade pip wheel setuptools \
 
 FROM python:${PYTHON_VERSION}-slim-bookworm AS runtime
 
-ARG APP_UID=10002
-ARG APP_GID=10002
+# MUST match the orchestrator's UID/GID — both containers share the
+# `artifacts` named volume and write per-execution sub-directories. A
+# UID mismatch makes the worker's mkdir() return EACCES on a dir the
+# orchestrator created (or vice-versa). 10001 is the orchestrator's
+# baseline.
+ARG APP_UID=10001
+ARG APP_GID=10001
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

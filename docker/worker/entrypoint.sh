@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 # Worker entrypoint — see docker/orchestrator/entrypoint.sh for the full
-# rationale. Same shape with worker-specific UID 10002.
+# rationale. UID/GID derived from the in-container `aetherforge` user so
+# the chown stays correct even if the Dockerfile bumps the baseline
+# (we previously had a 10001-vs-10002 mismatch with the orchestrator,
+# which made the worker EACCES on the shared artefacts volume).
 set -euo pipefail
 
-APP_UID=${APP_UID:-10002}
-APP_GID=${APP_GID:-10002}
+APP_UID=${APP_UID:-$(id -u aetherforge 2>/dev/null || echo 10001)}
+APP_GID=${APP_GID:-$(id -g aetherforge 2>/dev/null || echo 10001)}
 ARTIFACTS_DIR=${ARTIFACTS_DIR:-/opt/aetherforge/data/artifacts}
 DOCKER_SOCK=${DOCKER_SOCK:-/var/run/docker.sock}
 
