@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}AetherForge — Rules{% endblock %}
+
+{% block content %}
+<section class="space-y-6">
+  <header class="flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-semibold">Rule engine</h1>
+      <p class="text-slate-400 text-sm">
+        DSL rules loaded from <code>rules/&lt;persona&gt;/*.yaml</code> at boot.
+        Click a rule to inspect the <code>when</code>/<code>then</code> body.
+      </p>
+    </div>
+    <a href="/docs#/rules" target="_blank"
+       class="px-3 py-1.5 text-sm border border-slate-700 hover:border-slate-500 rounded">
+      Rule API
+    </a>
+  </header>
+
+  <form method="get" class="flex flex-wrap items-center gap-3 text-sm">
+    <label class="flex items-center gap-2">
+      <span class="text-slate-400 text-xs">Phase</span>
+      <select name="phase" class="bg-slate-900 border border-slate-700 rounded px-2 py-1">
+        <option value="">all</option>
+        {% for p in phases %}
+          <option value="{{ p }}" {% if filter_phase == p %}selected{% endif %}>{{ p }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="flex items-center gap-2">
+      <span class="text-slate-400 text-xs">Persona</span>
+      <select name="persona" class="bg-slate-900 border border-slate-700 rounded px-2 py-1">
+        <option value="">all</option>
+        {% for p in ['white','gray','black'] %}
+          <option value="{{ p }}" {% if filter_persona == p %}selected{% endif %}>{{ p }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="flex items-center gap-2">
+      <span class="text-slate-400 text-xs">Enabled</span>
+      <select name="enabled" class="bg-slate-900 border border-slate-700 rounded px-2 py-1">
+        <option value="">all</option>
+        <option value="true"  {% if filter_enabled == 'true'  %}selected{% endif %}>true</option>
+        <option value="false" {% if filter_enabled == 'false' %}selected{% endif %}>false</option>
+      </select>
+    </label>
+    <button class="px-3 py-1 bg-slate-800 hover:bg-slate-700 rounded text-sm">Filter</button>
+    <span class="text-slate-500 text-xs ml-auto">{{ rules | length }} shown</span>
+  </form>
+
+  <div class="rounded-xl border border-slate-800 overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-900/80 text-slate-400 text-xs uppercase tracking-wider">
+        <tr>
+          <th class="text-left px-4 py-2">Rule ID</th>
+          <th class="text-left px-4 py-2">Ver</th>
+          <th class="text-left px-4 py-2">Phase</th>
+          <th class="text-right px-4 py-2">Pri</th>
+          <th class="text-left px-4 py-2">Personas</th>
+          <th class="text-left px-4 py-2">State</th>
+          <th class="text-left px-4 py-2">Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rules %}
+        <tr class="border-t border-slate-800 hover:bg-slate-900/40">
+          <td class="px-4 py-2 font-mono text-xs">
+            <a href="/ui/rules/{{ r.rule_id }}" class="text-emerald-400 hover:underline">
+              {{ r.rule_id }}
+            </a>
+          </td>
+          <td class="px-4 py-2 text-xs text-slate-400">v{{ r.version }}</td>
+          <td class="px-4 py-2 text-xs"><code>{{ r.phase }}</code></td>
+          <td class="px-4 py-2 text-right tabular-nums">{{ r.priority }}</td>
+          <td class="px-4 py-2 space-x-1">
+            {% for p in r.personas %}
+              <span class="pill pill--running text-xs">{{ p }}</span>
+            {% endfor %}
+          </td>
+          <td class="px-4 py-2">
+            {% if r.enabled %}
+              <span class="pill pill--completed">enabled</span>
+            {% else %}
+              <span class="pill pill--paused">disabled</span>
+            {% endif %}
+          </td>
+          <td class="px-4 py-2 text-xs text-slate-300">
+            {{ r.description or '—' }}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7" class="px-4 py-12 text-center text-slate-500 text-sm">
+            No rules match. Run <code>make seed</code> if the database is empty.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

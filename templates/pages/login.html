@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}AetherForge — Sign in{% endblock %}
+
+{% block content %}
+<section class="max-w-sm mx-auto mt-12 space-y-6">
+  <header class="text-center">
+    <h1 class="text-3xl font-semibold">
+      <span class="text-emerald-400">Aether</span>Forge
+    </h1>
+    <p class="text-slate-400 text-sm mt-1">Operator console — sign in</p>
+  </header>
+
+  {% if error %}
+  <div class="rounded-lg border border-rose-700 bg-rose-950/40 px-4 py-3 text-sm text-rose-200">
+    {{ error }}
+  </div>
+  {% endif %}
+
+  <form method="post" action="/ui/login"
+        class="rounded-xl border border-slate-800 bg-slate-900/40 p-6 space-y-4">
+    <input type="hidden" name="_csrf" value="{{ csrf_token(request) }}" />
+    <input type="hidden" name="next" value="{{ next }}" />
+    <label class="block">
+      <span class="text-xs text-slate-400 uppercase">API key</span>
+      <input name="api_key" type="password" required autofocus autocomplete="current-password"
+             class="mt-1 w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-sm font-mono" />
+    </label>
+    <button type="submit"
+            class="w-full px-4 py-2 bg-emerald-600/80 hover:bg-emerald-500 text-white rounded text-sm">
+      Sign in
+    </button>
+    <p class="text-xs text-slate-500 text-center">
+      Same value as <code>AETHERFORGE_API_KEY</code>.
+    </p>
+  </form>
+</section>
+{% endblock %}

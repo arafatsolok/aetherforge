@@ -1,0 +1,27 @@
+id: r.recon.dns.a_record
+version: 1
+description: >
+  Resolve A records for every discovered subdomain. Cheap, runs for every
+  persona.
+phase: recon.passive
+priority: 85
+persona: [white, gray, black]
+tags: [recon, passive, dns]
+
+when:
+  all:
+    - fact_type: subdomain
+    - not_fact:
+        fact_type: dns_record
+        where:
+          host: "$fact.host"
+          type: "A"
+
+then:
+  action: execute_tool
+  tool: httpx
+  params:
+    target: "$fact.host"
+    flags:  ["-silent", "-json", "-ip", "-dns"]
+  on_success:
+    - emit_fact: dns_record

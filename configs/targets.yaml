@@ -1,0 +1,44 @@
+# =============================================================================
+# Targets inventory
+# Any scan launched against a host not covered here is rejected at the
+# command-generator layer when STRICT_SCOPE_ENFORCEMENT=true.
+#
+# Use `aetherforge target add` OR edit this file and `make seed`.
+# =============================================================================
+
+version: 1
+
+targets:
+  # --- Example replica environment (comment out for real deployments) -------
+  - id: lab-replica
+    description: Internal lab replica of the production web stack
+    owner: security-team@example.test
+    scope:
+      cidrs:
+        - 10.77.10.0/24
+        - 10.77.11.0/24
+      domains:
+        - replica.internal.example.test
+    tags:
+      - replica
+      - web
+    allowed_personas:
+      - white
+      - gray
+      - black            # black only allowed here because it's a replica
+    notes: |
+      Mirror of prod stack created 2026-Q1. Fresh blue-green replica is
+      deployed nightly — do NOT expect state to persist between runs.
+
+# Example of a production target with reduced capability (never enable black):
+#  - id: prod-edge
+#    description: Production edge web fleet (AUTHORISED READ-ONLY ONLY)
+#    scope:
+#      cidrs: [ 203.0.113.0/24 ]
+#      domains: [ www.example.com ]
+#    allowed_personas: [ white ]
+#    tags: [ production, public ]
+
+# Global forbidden CIDRs (union with FORBIDDEN_CIDRS env var).
+forbidden_cidrs:
+  - 0.0.0.0/0        # default-deny the internet; comment out ONLY if intentional

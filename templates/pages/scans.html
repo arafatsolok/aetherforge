@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}AetherForge — Scans{% endblock %}
+
+{% block content %}
+<section class="space-y-6">
+  <header class="flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-semibold">Scans</h1>
+      <p class="text-slate-400 text-sm">Newest first. Refreshes every 5s.</p>
+    </div>
+    <a href="/ui/scans/new"
+       class="px-3 py-1.5 text-sm bg-emerald-600/80 hover:bg-emerald-500 text-white rounded">
+      + New scan
+    </a>
+  </header>
+
+  <div class="rounded-xl border border-slate-800 overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-900/80 text-slate-400 text-xs uppercase tracking-wider">
+        <tr>
+          <th class="text-left px-4 py-2">ID</th>
+          <th class="text-left px-4 py-2">Target</th>
+          <th class="text-left px-4 py-2">Persona</th>
+          <th class="text-left px-4 py-2">State</th>
+          <th class="text-right px-4 py-2">Iter</th>
+          <th class="text-right px-4 py-2">Exec</th>
+          <th class="text-right px-4 py-2">Facts</th>
+          <th class="text-right px-4 py-2">Findings</th>
+          <th class="text-left px-4 py-2">Started</th>
+          <th class="text-right px-4 py-2">Actions</th>
+        </tr>
+      </thead>
+      <tbody hx-get="/ui/_partials/scans_rows" hx-trigger="load, every 5s" hx-swap="innerHTML">
+        {% include "partials/scans_rows.html" %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

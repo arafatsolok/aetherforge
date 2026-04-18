@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="referrer" content="no-referrer" />
+  {# CSRF token exposed for HTMX. The cookie itself is HttpOnly so an
+     XSS payload can't read it; the meta tag is the legitimate
+     same-page channel. #}
+  <meta name="csrf-token" content="{{ csrf_token(request) }}" />
+  <title>{% block title %}AetherForge{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/htmx.org@2.0.3"
+          integrity="sha384-0895/pl2MU10Hqc6jd4RvrthNlDiE9U1tWmX7WRESftEDRosgxNsQG/Ze9YMRzHq"
+          crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/htmx-ext-sse@2.2.2"></script>
+  <script defer src="https://unpkg.com/alpinejs@3.14.3/dist/cdn.min.js"></script>
+  <link rel="stylesheet" href="/static/css/main.css" />
+</head>
+<body class="bg-slate-950 text-slate-100 antialiased min-h-screen">
+  <header class="border-b border-slate-800 bg-slate-900/40 sticky top-0 z-10">
+    <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+      <a href="/" class="font-semibold tracking-wide text-lg flex items-center gap-2">
+        <span class="text-emerald-400">Aether</span>Forge
+        <span class="text-xs text-slate-500 font-normal">v{{ version | default("?") }}</span>
+      </a>
+      <nav class="flex items-center gap-1 text-sm">
+        {% set nav = [
+          ('/',           'Overview'),
+          ('/ui/scans',   'Scans'),
+          ('/ui/findings','Findings'),
+          ('/ui/targets', 'Targets'),
+          ('/ui/rules',   'Rules'),
+          ('/ui/tools',   'Tools'),
+          ('/ui/audit',   'Audit'),
+          ('/ui/drift',   'Drift'),
+        ] %}
+        {% for href, label in nav %}
+          <a href="{{ href }}"
+             class="px-3 py-1.5 rounded text-slate-300 hover:bg-slate-800 hover:text-slate-100">
+            {{ label }}
+          </a>
+        {% endfor %}
+        <span class="mx-2 h-6 w-px bg-slate-700"></span>
+        <a href="/docs" target="_blank" class="px-3 py-1.5 rounded text-slate-400 hover:text-slate-100">API</a>
+        <a href="http://localhost:8088" target="_blank"
+           class="px-3 py-1.5 rounded text-slate-400 hover:text-slate-100">Temporal</a>
+        <form method="post" action="/ui/logout" class="inline">
+          <input type="hidden" name="_csrf" value="{{ csrf_token(request) }}" />
+          <button type="submit"
+                  class="px-3 py-1.5 rounded text-slate-400 hover:text-slate-100 text-sm"
+                  title="End session">Sign out</button>
+        </form>
+      </nav>
+    </div>
+  </header>
+
+  <!-- HTMX wiring: copy the CSRF token from the <meta> tag into every
+       hx-* request, and surface transport errors (H2 + H4 fixes). The
+       CSRF cookie is HttpOnly — JS cannot read it — so we MUST source
+       the token from the same-origin page meta tag instead. -->
+  <script>
+    (function () {
+      function getMeta(name) {
+        var el = document.querySelector('meta[name="' + name + '"]');
+        return el ? el.getAttribute('content') : '';
+      }
+      document.body.addEventListener('htmx:configRequest', function (e) {
+        var t = getMeta('csrf-token');
+        if (t) e.detail.headers['X-CSRF-Token'] = t;
+      });
+      document.body.addEventListener('htmx:responseError', function (e) {
+        var status = e.detail.xhr ? e.detail.xhr.status : '?';
+        console.warn('htmx error', status, e.detail.pathInfo);
+        var note = document.createElement('div');
+        note.textContent = 'Request failed (' + status + '). Refresh or check the audit log.';
+        note.style.cssText = 'position:fixed;top:8px;right:8px;background:#7f1d1d;color:#fff;padding:8px 12px;border-radius:6px;font:12px monospace;z-index:9999;';
+        document.body.appendChild(note);
+        setTimeout(function () { note.remove(); }, 4000);
+      });
+    })();
+  </script>
+
+  <main class="max-w-7xl mx-auto px-6 py-8">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="border-t border-slate-800 mt-16 py-6">
+    <div class="max-w-7xl mx-auto px-6 text-center text-xs text-slate-500">
+      AetherForge — Autonomous VAPT Orchestrator · AGPL-3.0
+    </div>
+  </footer>
+</body>
+</html>

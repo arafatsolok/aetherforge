@@ -1,0 +1,29 @@
+/* AetherForge — dashboard overrides.
+   Tailwind provides the base; this file only holds truly custom rules. */
+
+:root {
+  --af-accent: #34d399;       /* emerald-400 */
+  --af-accent-alt: #f59e0b;   /* amber-500 */
+  --af-bg: #020617;           /* slate-950 */
+}
+
+html {
+  scheme: dark;
+  color-scheme: dark;
+}
+
+/* Scan state pills */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+}
+.pill--running   { background: rgba(52, 211, 153, 0.1); color: #6ee7b7; }
+.pill--paused    { background: rgba(250, 204, 21, 0.1); color: #fde68a; }
+.pill--completed { background: rgba(56, 189, 248, 0.1); color: #7dd3fc; }
+.pill--failed    { background: rgba(244, 114, 182, 0.1); color: #f9a8d4; }

@@ -1,0 +1,81 @@
+# ============================================================================
+# AetherForge — production-style override
+#
+# Brings up the same stack as docker-compose.yml but:
+#   * uses production env (AETHERFORGE_ENV=production triggers all validators)
+#   * runs in parallel with the dev stack via COMPOSE_PROJECT_NAME=aetherforge_prod
+#   * uses dedicated network names (the base file pins
+#     `aetherforge_backplane` / `aetherforge_targets` as fixed names, so we
+#     have to OVERRIDE here — otherwise the prod containers join the DEV
+#     network and resolve `postgres` to the dev container)
+#   * uses suffixed container names so they don't collide with the dev stack
+#   * exposes services on different host ports (see .env.prod)
+#   * disables CORS and binds API to localhost behind ports the operator chose
+#
+# Usage:
+#   docker compose --env-file .env.prod \
+#     -f docker-compose.yml -f docker-compose.prod.yml up -d
+# ============================================================================
+
+networks:
+  aetherforge_backplane:
+    name: aetherforge_prod_backplane
+    # Override the IPAM range from the base file — both stacks pinned
+    # 172.28.0.0/16 / 10.77.0.0/16 there, which can't coexist on the
+    # same docker daemon. Move prod onto adjacent ranges.
+    ipam:
+      config:
+        - subnet: 172.29.0.0/16
+  aetherforge_targets:
+    name: aetherforge_prod_targets
+    ipam:
+      config:
+        - subnet: 10.78.0.0/16
+
+services:
+  postgres:
+    container_name: aetherforge-prod-postgres
+
+  redis:
+    container_name: aetherforge-prod-redis
+
+  temporal:
+    container_name: aetherforge-prod-temporal
+
+  temporal-ui:
+    container_name: aetherforge-prod-temporal-ui
+
+  orchestrator:
+    container_name: aetherforge-prod-orchestrator
+    # CRITICAL: override env_file → .env.prod. The base compose hardcodes
+    # `env_file: .env` which would otherwise leak the dev .env values
+    # (including AETHERFORGE_ENV=development) into the prod container.
+    env_file: .env.prod
+    # Production: do NOT bind-mount the source tree. The image carries
+    # a frozen copy of /opt/aetherforge/app — we only mount data volumes.
+    volumes:
+      - ./rules:/opt/aetherforge/rules
+      - ./configs:/opt/aetherforge/configs:ro
+      - ./migrations:/opt/aetherforge/migrations
+      - ./scripts:/opt/aetherforge/scripts:ro
+      - artifacts:/opt/aetherforge/data/artifacts
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  worker:
+    # No container_name on worker (it scales to N replicas).
+    env_file: .env.prod
+    volumes:
+      - ./rules:/opt/aetherforge/rules
+      - ./configs:/opt/aetherforge/configs:ro
+      - ./scripts:/opt/aetherforge/scripts:ro
+      - artifacts:/opt/aetherforge/data/artifacts
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  metasploit:
+    container_name: aetherforge-prod-metasploit
+
+  openvas:
+    container_name: aetherforge-prod-openvas
+
+  wazuh-manager:
+    container_name: aetherforge-prod-wazuh-manager

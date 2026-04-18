@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}AetherForge — Audit log{% endblock %}
+
+{% block content %}
+<section class="space-y-6">
+  <header class="flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-semibold">Global audit log</h1>
+      <p class="text-slate-400 text-sm">
+        Append-only record of every orchestrator decision. Newest first.
+        Refreshes every 5s.
+      </p>
+    </div>
+  </header>
+
+  <form method="get" class="flex flex-wrap items-center gap-3 text-sm">
+    <label class="flex items-center gap-2">
+      <span class="text-slate-400 text-xs">Scan</span>
+      <input name="scan_id" value="{{ filter_scan_id }}" type="number" min="1"
+             placeholder="any"
+             class="bg-slate-900 border border-slate-700 rounded px-2 py-1 w-24" />
+    </label>
+    <label class="flex items-center gap-2">
+      <span class="text-slate-400 text-xs">Event</span>
+      <select name="event" class="bg-slate-900 border border-slate-700 rounded px-2 py-1">
+        <option value="">all</option>
+        {% for e in events %}
+          <option value="{{ e }}" {% if filter_event == e %}selected{% endif %}>{{ e }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="flex items-center gap-2">
+      <span class="text-slate-400 text-xs">Persona</span>
+      <select name="persona" class="bg-slate-900 border border-slate-700 rounded px-2 py-1">
+        <option value="">all</option>
+        {% for p in ['white','gray','black'] %}
+          <option value="{{ p }}" {% if filter_persona == p %}selected{% endif %}>{{ p }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="flex items-center gap-2">
+      <span class="text-slate-400 text-xs">Limit</span>
+      <input name="limit" value="{{ filter_limit }}" type="number" min="1" max="2000"
+             class="bg-slate-900 border border-slate-700 rounded px-2 py-1 w-20" />
+    </label>
+    <button class="px-3 py-1 bg-slate-800 hover:bg-slate-700 rounded text-sm">Filter</button>
+    <span class="text-slate-500 text-xs ml-auto">{{ entries | length }} shown</span>
+  </form>
+
+  <div class="rounded-xl border border-slate-800 overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-900/80 text-slate-400 text-xs uppercase tracking-wider">
+        <tr>
+          <th class="text-right px-3 py-2">#</th>
+          <th class="text-right px-3 py-2">Scan</th>
+          <th class="text-right px-3 py-2">Seq</th>
+          <th class="text-left  px-3 py-2">Event</th>
+          <th class="text-left  px-3 py-2">Persona</th>
+          <th class="text-left  px-3 py-2">Actor</th>
+          <th class="text-left  px-3 py-2">Rule</th>
+          <th class="text-left  px-3 py-2">Time</th>
+        </tr>
+      </thead>
+      <tbody hx-get="/ui/_partials/audit_rows?scan_id={{ filter_scan_id | urlencode }}&event={{ filter_event | urlencode }}&persona={{ filter_persona | urlencode }}&limit={{ filter_limit | urlencode }}"
+             hx-trigger="every 5s" hx-swap="innerHTML">
+        {% include "partials/audit_rows.html" %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

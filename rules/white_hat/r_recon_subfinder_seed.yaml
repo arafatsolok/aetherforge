@@ -1,0 +1,28 @@
+id: r.recon.subfinder.seed
+version: 1
+description: >
+  When a new target enters scope, run passive subdomain enumeration with
+  subfinder against every registered apex domain.
+phase: recon.passive
+priority: 95
+persona: [white, gray, black]
+tags: [recon, passive, subdomains, subfinder]
+
+when:
+  all:
+    - fact_type: host_alive
+      where:
+        host:
+          matches: "[a-zA-Z]"     # only fire on hostnames, skip raw IPs
+    - not_fact:
+        fact_type: subdomain
+        where: { host: "$fact.host" }
+
+then:
+  action: execute_tool
+  tool: subfinder
+  params:
+    target: "$fact.host"
+    flags:  ["-silent", "-json"]
+  on_success:
+    - emit_fact: subdomain

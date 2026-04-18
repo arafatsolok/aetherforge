@@ -1,0 +1,28 @@
+id: r.recon.amass.passive
+version: 1
+description: >
+  Passive amass enumeration — uses cert transparency + search engines.
+  Runs AFTER subfinder on the same domain so their results overlap for
+  coverage.
+phase: recon.passive
+priority: 90
+persona: [white, gray, black]
+tags: [recon, passive, subdomains, amass]
+
+when:
+  all:
+    - fact_type: host_alive
+      where:
+        host:
+          matches: "[a-zA-Z]"
+    - fact_type: subdomain
+      where: { source_tool: "subfinder" }
+
+then:
+  action: execute_tool
+  tool: amass
+  params:
+    target: "$fact.host"
+    flags:  ["enum", "-passive", "-json", "/output/amass.json"]
+  on_success:
+    - emit_fact: subdomain

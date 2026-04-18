@@ -1,0 +1,85 @@
+# AetherForge gitignore
+
+# -- Python --
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+.eggs/
+.Python
+build/
+dist/
+wheels/
+pip-wheel-metadata/
+.installed.cfg
+
+# -- Virtual envs --
+.venv/
+venv/
+env/
+ENV/
+
+# -- Testing / coverage --
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+.mypy_cache/
+.ruff_cache/
+
+# -- Secrets (NEVER COMMIT) --
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+secrets/
+
+# -- Runtime data --
+data/artifacts/*
+!data/artifacts/.gitkeep
+data/reports/*
+!data/reports/.gitkeep
+data/logs/*
+!data/logs/.gitkeep
+data/state/*
+!data/state/.gitkeep
+
+# -- Docker --
+.docker/
+docker-compose.override.yml
+
+# -- IDE --
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# -- Alembic --
+migrations/versions/__pycache__/
+
+# -- Frontend asset builds --
+static/dist/
+
+# -- Local tool cache / temp --
+.tmp/
+tmp/
+*.log
+
+# -- Local agent / IDE state (per-developer; not project code) --
+# Note: .cursorrules / .windsurfrules / AGENTS.md / GEMINI.md / CLAUDE.md
+# are intentionally TRACKED so contributors using any of those agents
+# get the same code-review-graph wiring + project conventions.
+.venv-test/
+.claude/
+.code-review-graph/

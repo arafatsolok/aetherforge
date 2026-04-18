@@ -1,0 +1,82 @@
+# =============================================================================
+# Persona overlay configuration
+# Loaded by app.core.persona_engine at boot.
+# Values here REPLACE the hard-coded defaults in app.core.persona_engine.
+# =============================================================================
+
+version: 1
+
+personas:
+  white:
+    description: >
+      Passive recon + non-destructive observation only. No active probes,
+      no auth attempts, no scanning beyond DNS / cert transparency /
+      search-engine footprinting.
+    rate_limit_rps: 2
+    allowed_phases:
+      - recon.passive
+    capabilities:
+      passive_recon: true
+      active_recon: false
+      vuln_scan: false
+      exploit: false
+      post_exploit: false
+      persistence: false
+      exfil_simulation: false
+
+  gray:
+    description: >
+      Active scanning + safe limited exploitation. May probe open ports,
+      fingerprint services, run non-destructive vuln scanners, and trigger
+      proof-of-concept exploits that do NOT damage the target.
+    rate_limit_rps: 20
+    allowed_phases:
+      - recon.passive
+      - recon.active
+      - enumeration
+      - vuln_scan
+      - exploit.safe
+    capabilities:
+      passive_recon: true
+      active_recon: true
+      vuln_scan: true
+      exploit: true
+      post_exploit: false
+      persistence: false
+      exfil_simulation: false
+
+  black:
+    description: >
+      Full kill-chain against replica environments. Enables post-
+      exploitation, persistence simulation, C2 relay simulation, and
+      exfiltration-path drills. NEVER allow against production.
+    rate_limit_rps: 100
+    allowed_phases:
+      - recon.passive
+      - recon.active
+      - enumeration
+      - vuln_scan
+      - exploit.safe
+      - exploit.full
+      - post_exploit
+      - persistence
+      - pivoting
+      - exfil_simulation
+    capabilities:
+      passive_recon: true
+      active_recon: true
+      vuln_scan: true
+      exploit: true
+      post_exploit: true
+      persistence: true
+      exfil_simulation: true
+
+# --- Escalation policy -------------------------------------------------------
+escalation:
+  # Automatic escalation is OFF by default. Explicit operator signal is
+  # required to move gray → black.
+  allow_auto_escalation: false
+  max_auto_hops_per_hour: 0
+  authorised_operators:
+    - security-lead@example.test
+    - purple-lead@example.test

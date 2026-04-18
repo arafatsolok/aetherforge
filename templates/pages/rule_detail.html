@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}AetherForge — Rule {{ rule.rule_id }}{% endblock %}
+
+{% block content %}
+<section class="space-y-6">
+  <div>
+    <a href="/ui/rules" class="text-emerald-400 hover:underline text-sm">← rules</a>
+    <h1 class="text-2xl font-semibold mt-1 font-mono">{{ rule.rule_id }}</h1>
+    <p class="text-slate-400 text-sm mt-1">{{ rule.description or 'No description.' }}</p>
+  </div>
+
+  <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+    <div class="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
+      <div class="text-xs text-slate-400 uppercase">Version</div>
+      <div class="mt-1 text-xl font-semibold">v{{ rule.version }}</div>
+    </div>
+    <div class="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
+      <div class="text-xs text-slate-400 uppercase">Phase</div>
+      <div class="mt-1 text-xl font-semibold">{{ rule.phase }}</div>
+    </div>
+    <div class="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
+      <div class="text-xs text-slate-400 uppercase">Priority</div>
+      <div class="mt-1 text-xl font-semibold">{{ rule.priority }}</div>
+    </div>
+    <div class="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
+      <div class="text-xs text-slate-400 uppercase">State</div>
+      <div class="mt-1">
+        {% if rule.enabled %}
+          <span class="pill pill--completed">enabled</span>
+        {% else %}
+          <span class="pill pill--paused">disabled</span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
+      <div class="text-xs text-slate-400 uppercase">Personas</div>
+      <div class="mt-1 space-x-1">
+        {% for p in rule.personas %}
+          <span class="pill pill--running text-xs">{{ p }}</span>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  {% if rule.source_path %}
+  <div class="text-xs text-slate-400">
+    Source: <code>{{ rule.source_path }}</code>
+    {% if rule.source_sha256 %}· sha256 <code>{{ rule.source_sha256[:12] }}…</code>{% endif %}
+  </div>
+  {% endif %}
+
+  <div class="rounded-xl border border-slate-800 overflow-hidden">
+    <div class="px-4 py-2 bg-slate-900/80 text-xs uppercase tracking-wider text-slate-400">
+      Body — DSL (when / then / metadata)
+    </div>
+    <pre class="bg-slate-950 text-slate-200 text-xs p-4 overflow-x-auto"
+>{{ rule.body | tojson(indent=2) }}</pre>
+  </div>
+
+  {% if versions | length > 1 %}
+  <div class="rounded-xl border border-slate-800 overflow-hidden">
+    <div class="px-4 py-2 bg-slate-900/80 text-xs uppercase tracking-wider text-slate-400">
+      All versions ({{ versions | length }})
+    </div>
+    <table class="w-full text-sm">
+      <thead class="text-slate-400 text-xs">
+        <tr>
+          <th class="text-left px-4 py-2">Version</th>
+          <th class="text-left px-4 py-2">Updated</th>
+          <th class="text-left px-4 py-2">State</th>
+          <th class="text-left px-4 py-2">Source</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for v in versions %}
+        <tr class="border-t border-slate-800">
+          <td class="px-4 py-2 font-mono text-xs">v{{ v.version }}</td>
+          <td class="px-4 py-2 text-xs text-slate-400">
+            {{ v.updated_at.strftime('%Y-%m-%d %H:%M') if v.updated_at else '—' }}
+          </td>
+          <td class="px-4 py-2">
+            {% if v.enabled %}
+              <span class="pill pill--completed">enabled</span>
+            {% else %}
+              <span class="pill pill--paused">disabled</span>
+            {% endif %}
+          </td>
+          <td class="px-4 py-2 text-xs text-slate-400">{{ v.source_path or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

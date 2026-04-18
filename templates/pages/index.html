@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}AetherForge — Overview{% endblock %}
+
+{% block content %}
+<section class="space-y-8">
+
+  <header>
+    <h1 class="text-3xl font-semibold">Operator overview</h1>
+    <p class="text-slate-400 mt-1">Autonomous VAPT orchestrator status and live counters.</p>
+  </header>
+
+  <!-- Live metrics tile (HTMX-refreshed every 5s) -->
+  <div hx-get="/ui/_partials/metrics" hx-trigger="load, every 5s" hx-swap="innerHTML">
+    {% include "partials/metrics.html" %}
+  </div>
+
+  <!-- Quick links -->
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <a href="/ui/scans" class="block rounded-xl border border-slate-800 bg-slate-900/40 p-5 hover:border-emerald-500/40">
+      <div class="text-emerald-400 text-sm">Scans</div>
+      <div class="mt-1 text-slate-300 text-sm">Live runs, audit log, signals (stop / escalate).</div>
+    </a>
+    <a href="/ui/findings" class="block rounded-xl border border-slate-800 bg-slate-900/40 p-5 hover:border-emerald-500/40">
+      <div class="text-emerald-400 text-sm">Findings</div>
+      <div class="mt-1 text-slate-300 text-sm">Severity-sorted, triage workflow, CVE lookups.</div>
+    </a>
+    <a href="/ui/targets" class="block rounded-xl border border-slate-800 bg-slate-900/40 p-5 hover:border-emerald-500/40">
+      <div class="text-emerald-400 text-sm">Targets</div>
+      <div class="mt-1 text-slate-300 text-sm">Scope CRUD + replica_only flag.</div>
+    </a>
+    <a href="/ui/rules" class="block rounded-xl border border-slate-800 bg-slate-900/40 p-5 hover:border-emerald-500/40">
+      <div class="text-emerald-400 text-sm">Rules</div>
+      <div class="mt-1 text-slate-300 text-sm">Deterministic DSL — inspect when/then bodies.</div>
+    </a>
+    <a href="/ui/tools" class="block rounded-xl border border-slate-800 bg-slate-900/40 p-5 hover:border-emerald-500/40">
+      <div class="text-emerald-400 text-sm">Tools</div>
+      <div class="mt-1 text-slate-300 text-sm">
+        Sandboxed wrapper registry ({{ tools_count | default(0) }} tools).
+      </div>
+    </a>
+    <a href="/ui/audit" class="block rounded-xl border border-slate-800 bg-slate-900/40 p-5 hover:border-emerald-500/40">
+      <div class="text-emerald-400 text-sm">Audit log</div>
+      <div class="mt-1 text-slate-300 text-sm">Append-only replay of every decision.</div>
+    </a>
+    <a href="/ui/drift" class="block rounded-xl border border-slate-800 bg-slate-900/40 p-5 hover:border-emerald-500/40">
+      <div class="text-emerald-400 text-sm">Drift</div>
+      <div class="mt-1 text-slate-300 text-sm">Per-target snapshots + continuous monitor.</div>
+    </a>
+    <a href="/docs" target="_blank" class="block rounded-xl border border-slate-800 bg-slate-900/40 p-5 hover:border-emerald-500/40">
+      <div class="text-emerald-400 text-sm">API docs</div>
+      <div class="mt-1 text-slate-300 text-sm">OpenAPI / Swagger — the 10 REST routers.</div>
+    </a>
+  </div>
+
+</section>
+{% endblock %}

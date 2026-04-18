@@ -1,0 +1,164 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Ruff lint
+        run: ruff check app/ scripts/ tests/
+
+      - name: Ruff format check
+        run: ruff format --check app/ scripts/ tests/
+
+      - name: Mypy (non-strict for now)
+        continue-on-error: true
+        run: mypy app/ --ignore-missing-imports --no-strict-optional
+
+      - name: Pytest unit
+        env:
+          AETHERFORGE_SECRET_KEY: x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x
+          AETHERFORGE_FORBIDDEN_CIDRS: "127.0.0.0/8"
+        run: pytest tests/unit -q --cov=app --cov-report=term-missing
+
+      - name: Validate baseline rules
+        env:
+          AETHERFORGE_SECRET_KEY: x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x
+        run: python -m scripts.validate_rules
+
+  yaml-rules:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Install YAML deps
+        run: pip install pyyaml jsonschema pydantic 'ulid-py>=1' structlog
+      - name: Lint every rule file
+        run: |
+          python -c "
+          import sys, yaml, glob
+          ok = True
+          for path in sorted(glob.glob('rules/**/*.yaml', recursive=True)):
+              try:
+                  with open(path) as f: yaml.safe_load(f)
+                  print(f'OK   {path}')
+              except yaml.YAMLError as e:
+                  print(f'FAIL {path}: {e}'); ok = False
+          sys.exit(0 if ok else 1)
+          "
+
+  # L4 — seed scripts had no CI coverage; a refactor to RuleRepository
+  # or KB schema could silently break them, only surfacing during
+  # `make seed` on an operator's first deploy. This job spins up a
+  # disposable postgres + runs migrations + invokes BOTH seed scripts
+  # end-to-end and asserts the row counts moved.
+  seed-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: aetherforge
+          POSTGRES_PASSWORD: ci_only_password
+          POSTGRES_DB: aetherforge
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U aetherforge -d aetherforge"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Migrate
+        env:
+          AETHERFORGE_DATABASE_URL: postgresql+asyncpg://aetherforge:ci_only_password@127.0.0.1:5432/aetherforge
+          AETHERFORGE_SECRET_KEY: x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x
+          AETHERFORGE_FORBIDDEN_CIDRS: "127.0.0.0/8"
+        run: alembic upgrade head
+
+      - name: seed_rules.py (idempotent dry-run)
+        env:
+          AETHERFORGE_DATABASE_URL: postgresql+asyncpg://aetherforge:ci_only_password@127.0.0.1:5432/aetherforge
+          AETHERFORGE_SECRET_KEY: x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x
+          AETHERFORGE_FORBIDDEN_CIDRS: "127.0.0.0/8"
+        run: |
+          python -m scripts.seed_rules
+          # Re-run to prove idempotency — second run must also exit 0.
+          python -m scripts.seed_rules
+
+      - name: seed_knowledge_base.py (idempotent dry-run)
+        env:
+          AETHERFORGE_DATABASE_URL: postgresql+asyncpg://aetherforge:ci_only_password@127.0.0.1:5432/aetherforge
+          AETHERFORGE_SECRET_KEY: x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x
+          AETHERFORGE_FORBIDDEN_CIDRS: "127.0.0.0/8"
+        run: |
+          python -m scripts.seed_knowledge_base
+          python -m scripts.seed_knowledge_base
+
+      - name: Verify row counts moved
+        env:
+          PGPASSWORD: ci_only_password
+        run: |
+          set -e
+          psql -h 127.0.0.1 -U aetherforge -d aetherforge -tAc \
+            "SELECT count(*) FROM rules" | tee /tmp/rules_count
+          psql -h 127.0.0.1 -U aetherforge -d aetherforge -tAc \
+            "SELECT count(*) FROM cves UNION ALL SELECT count(*) FROM cpes" \
+            | tee /tmp/kb_counts
+          test "$(cat /tmp/rules_count)" -gt 0 || (echo "rules table empty after seed" && exit 1)
+
+  docker-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build orchestrator image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/orchestrator/Dockerfile
+          push: false
+          tags: aetherforge/orchestrator:ci
+      - name: Build worker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/worker/Dockerfile
+          push: false
+          tags: aetherforge/worker:ci
+      - name: Build nmap tool image
+        uses: docker/build-push-action@v5
+        with:
+          context: docker/tools/nmap
+          push: false
+          tags: aetherforge/nmap:ci

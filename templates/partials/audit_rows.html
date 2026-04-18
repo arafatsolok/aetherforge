@@ -1,0 +1,26 @@
+{% for a in entries %}
+<tr class="border-t border-slate-800 hover:bg-slate-900/40 font-mono text-xs">
+  <td class="px-3 py-1 text-right text-slate-500 tabular-nums">{{ a.id }}</td>
+  <td class="px-3 py-1 text-right">
+    {% if a.scan_id %}
+      <a href="/ui/scans/{{ a.scan_id }}" class="text-emerald-400 hover:underline">
+        #{{ a.scan_id }}
+      </a>
+    {% else %}<span class="text-slate-600">—</span>{% endif %}
+  </td>
+  <td class="px-3 py-1 text-right text-slate-400">{{ a.sequence }}</td>
+  <td class="px-3 py-1 text-emerald-400">{{ a.event }}</td>
+  <td class="px-3 py-1 text-slate-300">{{ a.persona or '—' }}</td>
+  <td class="px-3 py-1 text-slate-400">{{ a.actor }}</td>
+  <td class="px-3 py-1 text-slate-300">{{ a.rule_id or '—' }}</td>
+  <td class="px-3 py-1 text-slate-500">
+    {{ a.created_at.strftime('%Y-%m-%d %H:%M:%S') if a.created_at else '—' }}
+  </td>
+</tr>
+{% else %}
+<tr>
+  <td colspan="8" class="px-3 py-12 text-center text-slate-500 text-sm">
+    No audit entries match.
+  </td>
+</tr>
+{% endfor %}

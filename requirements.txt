@@ -1,0 +1,68 @@
+# Pinned runtime deps — mirrored from pyproject.toml for Docker cache.
+# Source of truth is pyproject.toml. Regenerate with:
+#   pip-compile --strip-extras --output-file=requirements.txt pyproject.toml
+
+# --- Web framework ---
+fastapi[standard]>=0.115.0
+uvicorn[standard]>=0.32.0
+gunicorn>=23.0.0
+httpx>=0.27.2
+python-multipart>=0.0.17
+itsdangerous>=2.2.0
+jinja2>=3.1.4
+
+# --- Data models ---
+pydantic>=2.9.2
+pydantic-settings>=2.6.1
+sqlmodel>=0.0.22
+sqlalchemy[asyncio]>=2.0.36
+alembic>=1.14.0
+asyncpg>=0.30.0
+psycopg[binary]>=3.2.3
+
+# --- Queue + broker ---
+redis>=5.2.0
+rq>=2.0.0
+
+# --- Workflow engine ---
+temporalio>=1.9.0
+
+# --- Security tooling ---
+pymetasploit3>=1.0.3
+python-libnmap>=0.7.3
+python-nmap>=0.7.1
+defusedxml>=0.7.1
+pyOpenSSL>=24.2.1
+cryptography>=43.0.3
+
+# --- Container control ---
+docker>=7.1.0
+
+# --- Parsers / formats ---
+PyYAML>=6.0.2
+orjson>=3.10.11
+jsonschema>=4.23.0
+beautifulsoup4>=4.12.3
+lxml>=5.3.0
+
+# --- Reporting ---
+weasyprint>=63.0
+markdown>=3.7
+
+# --- Utilities ---
+structlog>=24.4.0
+rich>=13.9.4
+typer>=0.13.0
+tenacity>=9.0.0
+python-dotenv>=1.0.1
+cidrize>=3.0.0
+netaddr>=1.3.0
+tldextract>=5.1.3
+ulid-py>=1.1.0
+packaging>=24.2
+
+# --- Observability ---
+prometheus-client>=0.21.0
+opentelemetry-api>=1.28.2
+opentelemetry-sdk>=1.28.2
+opentelemetry-instrumentation-fastapi>=0.49b2

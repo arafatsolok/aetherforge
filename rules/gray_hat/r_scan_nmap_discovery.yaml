@@ -1,0 +1,25 @@
+id: r.scan.nmap.discovery
+version: 1
+description: >
+  Broad TCP port discovery on each alive host. Runs once per
+  (scan, host) when no port data has been gathered yet.
+phase: recon.active
+priority: 85
+persona: [gray, black]
+tags: [recon, active, nmap, discovery]
+
+when:
+  all:
+    - fact_type: host_alive
+    - not_fact:
+        fact_type: port_open
+        where: { host: "$fact.host" }
+
+then:
+  action: execute_tool
+  tool: nmap
+  params:
+    target: "$fact.host"
+    flags:  ["-sT", "-Pn", "-T3", "--top-ports", "1000"]
+  on_success:
+    - emit_fact: port_open

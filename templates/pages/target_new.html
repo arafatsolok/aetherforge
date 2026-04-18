@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}AetherForge — New target{% endblock %}
+
+{% block content %}
+<section class="max-w-2xl mx-auto space-y-6">
+  <div>
+    <a href="/ui/targets" class="text-emerald-400 hover:underline text-sm">← targets</a>
+    <h1 class="text-2xl font-semibold mt-1">Create target</h1>
+    <p class="text-slate-400 text-sm mt-1">
+      Scope envelope. Black persona is rejected at API ingress unless
+      <code>replica_only</code> is checked.
+    </p>
+  </div>
+
+  {% if error %}
+  <div class="rounded-lg border border-rose-700 bg-rose-950/40 px-4 py-3 text-sm text-rose-200">
+    {{ error }}
+  </div>
+  {% endif %}
+
+  <form method="post" action="/ui/targets/new"
+        class="rounded-xl border border-slate-800 bg-slate-900/40 p-6 space-y-4">
+    <input type="hidden" name="_csrf" value="{{ csrf_token(request) }}" />
+
+    <div class="grid grid-cols-2 gap-4">
+      <label class="block">
+        <span class="text-xs text-slate-400 uppercase">Slug</span>
+        <input name="slug" required pattern="[a-z0-9][a-z0-9._-]*" maxlength="64"
+               placeholder="my-target"
+               class="mt-1 w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-sm font-mono" />
+      </label>
+      <label class="block">
+        <span class="text-xs text-slate-400 uppercase">Owner</span>
+        <input name="owner" maxlength="256" placeholder="security@example.com"
+               class="mt-1 w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-sm" />
+      </label>
+    </div>
+
+    <label class="block">
+      <span class="text-xs text-slate-400 uppercase">Description</span>
+      <input name="description" maxlength="1024"
+             class="mt-1 w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-sm" />
+    </label>
+
+    <label class="block">
+      <span class="text-xs text-slate-400 uppercase">CIDRs (comma-separated)</span>
+      <input name="cidrs" placeholder="10.0.0.0/24, 192.168.1.0/24"
+             class="mt-1 w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-sm font-mono" />
+    </label>
+
+    <label class="block">
+      <span class="text-xs text-slate-400 uppercase">Domains (comma-separated)</span>
+      <input name="domains" placeholder="example.com, dev.example.com"
+             class="mt-1 w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-sm font-mono" />
+    </label>
+
+    <fieldset class="block">
+      <legend class="text-xs text-slate-400 uppercase">Allowed personas</legend>
+      <div class="mt-1 flex flex-wrap gap-3 bg-slate-950 border border-slate-700 rounded px-3 py-2">
+        {% for p in personas %}
+        <label class="inline-flex items-center gap-2 text-sm">
+          <input type="checkbox" name="allowed_personas" value="{{ p }}"
+                 {% if p in ('white', 'gray') %}checked{% endif %}
+                 class="rounded border-slate-700 bg-slate-950" />
+          <span>{{ p }}</span>
+        </label>
+        {% endfor %}
+      </div>
+      <span class="text-xs text-slate-500 mt-1 block">
+        <code>black</code> additionally requires <code>replica_only</code>.
+      </span>
+    </fieldset>
+
+    <label class="block">
+      <span class="text-xs text-slate-400 uppercase">Tags (comma-separated)</span>
+      <input name="tags" placeholder="prod, internal"
+             class="mt-1 w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-sm" />
+    </label>
+
+    <label class="block">
+      <span class="text-xs text-slate-400 uppercase">Notes</span>
+      <textarea name="notes" rows="3" maxlength="8192"
+                class="mt-1 w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-sm"></textarea>
+    </label>
+
+    <label class="flex items-center gap-2 pt-1">
+      <input name="replica_only" type="checkbox" value="true"
+             class="rounded border-slate-700 bg-slate-950" />
+      <span class="text-sm text-slate-300">
+        <code>replica_only</code> — required for black persona scans
+      </span>
+    </label>
+
+    <div class="flex items-center gap-3 pt-2">
+      <button type="submit"
+              class="px-4 py-2 bg-emerald-600/80 hover:bg-emerald-500 text-white rounded text-sm">
+        Create target
+      </button>
+      <a href="/ui/targets" class="text-sm text-slate-400 hover:text-slate-200">Cancel</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

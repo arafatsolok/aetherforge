@@ -1,0 +1,130 @@
+# =============================================================================
+# Tool registry descriptor
+# Each entry maps a tool name (used in rules + command generator) to its
+# container image + baseline sandbox parameters.
+# =============================================================================
+
+version: 1
+
+tools:
+  nmap:
+    image: aetherforge/nmap:latest
+    category: recon.active
+    cap_add: [NET_RAW]
+    cap_drop: [ALL]
+    memory_bytes: 536870912         # 512 MiB
+    cpu_shares: 512
+    default_timeout_seconds: 1800
+    supports_json_output: false
+    min_persona_ordinal: 1          # gray+
+    version: "7.95"
+
+  masscan:
+    image: aetherforge/masscan:latest
+    category: recon.active
+    cap_add: [NET_RAW, NET_ADMIN]
+    cap_drop: [ALL]
+    memory_bytes: 268435456
+    cpu_shares: 512
+    default_timeout_seconds: 600
+    min_persona_ordinal: 1
+
+  nuclei:
+    image: aetherforge/nuclei:latest
+    category: vuln_scan
+    cap_drop: [ALL]
+    memory_bytes: 1073741824
+    cpu_shares: 512
+    default_timeout_seconds: 3600
+    supports_json_output: true
+    min_persona_ordinal: 1
+
+  nettacker:
+    image: aetherforge/nettacker:latest
+    category: vuln_scan
+    cap_drop: [ALL]
+    memory_bytes: 1073741824
+    cpu_shares: 512
+    default_timeout_seconds: 3600
+    min_persona_ordinal: 1
+
+  sqlmap:
+    image: aetherforge/sqlmap:latest
+    category: exploit
+    cap_drop: [ALL]
+    memory_bytes: 536870912
+    cpu_shares: 512
+    default_timeout_seconds: 1800
+    min_persona_ordinal: 1          # gray (safe mode) / black (full)
+
+  nikto:
+    image: aetherforge/nikto:latest
+    category: vuln_scan
+    cap_drop: [ALL]
+    memory_bytes: 268435456
+    cpu_shares: 512
+    default_timeout_seconds: 1800
+    min_persona_ordinal: 1
+
+  wapiti:
+    image: aetherforge/wapiti:latest
+    category: vuln_scan
+    cap_drop: [ALL]
+    memory_bytes: 536870912
+    cpu_shares: 512
+    default_timeout_seconds: 1800
+    min_persona_ordinal: 1
+
+  subfinder:
+    image: aetherforge/subfinder:latest
+    category: recon.passive
+    cap_drop: [ALL]
+    memory_bytes: 268435456
+    cpu_shares: 256
+    default_timeout_seconds: 600
+    supports_json_output: true
+    min_persona_ordinal: 0          # white+
+
+  amass:
+    image: aetherforge/amass:latest
+    category: recon.passive
+    cap_drop: [ALL]
+    memory_bytes: 536870912
+    cpu_shares: 512
+    default_timeout_seconds: 3600
+    supports_json_output: true
+    min_persona_ordinal: 0
+
+  httpx:
+    image: aetherforge/httpx:latest
+    category: recon.active
+    cap_drop: [ALL]
+    memory_bytes: 268435456
+    cpu_shares: 512
+    default_timeout_seconds: 600
+    supports_json_output: true
+    min_persona_ordinal: 1
+
+  ffuf:
+    image: aetherforge/ffuf:latest
+    category: enumeration
+    cap_drop: [ALL]
+    memory_bytes: 268435456
+    cpu_shares: 512
+    default_timeout_seconds: 1800
+    supports_json_output: true
+    min_persona_ordinal: 1
+
+  metasploit:
+    # Long-running RPC daemon, not an ephemeral container — the wrapper
+    # talks to msfrpcd at MSF_RPC_HOST:MSF_RPC_PORT.
+    image: aetherforge/metasploit:latest
+    category: exploit
+    rpc: true
+    min_persona_ordinal: 2          # black only
+
+  openvas:
+    image: aetherforge/openvas:latest
+    category: vuln_scan
+    rpc: true                       # consumed via GMP, not ephemeral spawn
+    min_persona_ordinal: 1

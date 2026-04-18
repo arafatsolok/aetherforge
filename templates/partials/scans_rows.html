@@ -1,0 +1,51 @@
+{% for s in scans %}
+<tr class="border-t border-slate-800 hover:bg-slate-900/40">
+  <td class="px-4 py-2 font-mono text-xs">
+    <a href="/ui/scans/{{ s.id }}" class="text-emerald-400 hover:underline">{{ s.id }}</a>
+  </td>
+  <td class="px-4 py-2 text-slate-300">{{ (target_slugs or {}).get(s.target_id, s.target_id) }}</td>
+  <td class="px-4 py-2"><span class="pill pill--running">{{ s.persona }}</span></td>
+  <td class="px-4 py-2">
+    <span class="pill {{ {
+      'running':'pill--running',
+      'completed':'pill--completed',
+      'failed':'pill--failed',
+      'paused':'pill--paused',
+    }.get(s.state,'pill--paused') }}">{{ s.state }}</span>
+  </td>
+  <td class="px-4 py-2 text-right tabular-nums">{{ s.iterations }}</td>
+  <td class="px-4 py-2 text-right tabular-nums">{{ s.executions_total }}</td>
+  <td class="px-4 py-2 text-right tabular-nums">{{ s.facts_total }}</td>
+  <td class="px-4 py-2 text-right tabular-nums">{{ s.findings_total }}</td>
+  <td class="px-4 py-2 text-xs text-slate-400">
+    {{ s.started_at.strftime('%H:%M:%S') if s.started_at else '—' }}
+  </td>
+  <td class="px-4 py-2 text-right text-xs whitespace-nowrap">
+    <a href="/api/v1/reports/{{ s.id }}?fmt=html" target="_blank"
+       class="text-slate-400 hover:text-slate-100">HTML</a>
+    <span class="mx-1 text-slate-700">·</span>
+    <a href="/api/v1/reports/{{ s.id }}?fmt=pdf" target="_blank"
+       class="text-emerald-400 hover:text-emerald-300">PDF</a>
+    {% if s.state == 'running' %}
+    <span class="mx-1 text-slate-700">·</span>
+    {% if s.persona != 'black' %}
+    <button class="text-amber-400 hover:text-amber-300"
+            hx-post="/api/v1/scans/{{ s.id }}/escalate?to={{ 'black' if s.persona == 'gray' else 'gray' }}&authorised_by=ui"
+            hx-confirm="Escalate scan {{ s.id }} to {{ 'black' if s.persona == 'gray' else 'gray' }}?"
+            hx-swap="none">Escalate</button>
+    <span class="mx-1 text-slate-700">·</span>
+    {% endif %}
+    <button class="text-rose-400 hover:text-rose-300"
+            hx-post="/api/v1/scans/{{ s.id }}/stop?reason=ui-stop"
+            hx-confirm="Stop scan {{ s.id }}?"
+            hx-swap="none">Stop</button>
+    {% endif %}
+  </td>
+</tr>
+{% else %}
+<tr>
+  <td colspan="10" class="px-4 py-12 text-center text-slate-500 text-sm">
+    No scans yet. POST <code>/api/v1/scans</code> to start one.
+  </td>
+</tr>
+{% endfor %}

@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}AetherForge — Drift {{ target.slug }}{% endblock %}
+
+{% block content %}
+<section class="space-y-6">
+  <div>
+    <a href="/ui/drift" class="text-emerald-400 hover:underline text-sm">← drift</a>
+    <h1 class="text-2xl font-semibold mt-1">{{ target.slug }}</h1>
+    <p class="text-slate-400 text-sm">
+      {{ snapshots | length }} snapshots, {{ deltas | length }} deltas.
+    </p>
+  </div>
+
+  <div class="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
+    <h2 class="text-sm font-semibold text-slate-200">Continuous monitor</h2>
+    <p class="text-xs text-slate-400 mt-1">
+      Start a recurring scan. The workflow id is <code>monitor-{{ target.slug }}</code>.
+    </p>
+    <form method="post" action="/ui/drift/{{ target.id }}/monitor"
+          class="mt-3 flex flex-wrap items-center gap-3 text-sm">
+      <input type="hidden" name="_csrf" value="{{ csrf_token(request) }}" />
+      <label class="flex items-center gap-2">
+        <span class="text-slate-400 text-xs">Persona</span>
+        <select name="persona" class="bg-slate-800 border border-slate-700 rounded px-2 py-1">
+          {% for p in personas %}
+            {% if p in target.allowed_personas %}
+              <option value="{{ p }}" {% if p == 'gray' %}selected{% endif %}>{{ p }}</option>
+            {% endif %}
+          {% endfor %}
+        </select>
+      </label>
+      <label class="flex items-center gap-2">
+        <span class="text-slate-400 text-xs">Interval (s)</span>
+        <input name="interval_seconds" type="number" min="60" max="604800" value="21600"
+               class="bg-slate-800 border border-slate-700 rounded px-2 py-1 w-28" />
+      </label>
+      <label class="flex items-center gap-2">
+        <span class="text-slate-400 text-xs">Started by</span>
+        <input name="started_by" type="text" value="ui"
+               class="bg-slate-800 border border-slate-700 rounded px-2 py-1 w-32" />
+      </label>
+      <button class="px-3 py-1.5 bg-emerald-600/80 hover:bg-emerald-500 text-white rounded text-xs">
+        Start monitor
+      </button>
+    </form>
+    <form method="post" action="/ui/drift/{{ target.id }}/monitor/stop" class="mt-2">
+      <input type="hidden" name="_csrf" value="{{ csrf_token(request) }}" />
+      <button class="px-3 py-1.5 border border-rose-700 text-rose-400 hover:bg-rose-900/20 rounded text-xs">
+        Stop monitor
+      </button>
+    </form>
+  </div>
+
+  <div class="rounded-xl border border-slate-800 overflow-hidden">
+    <div class="px-4 py-2 bg-slate-900/80 text-xs uppercase tracking-wider text-slate-400">
+      Snapshots
+    </div>
+    <table class="w-full text-sm">
+      <thead class="text-slate-400 text-xs">
+        <tr>
+          <th class="text-right px-4 py-2">ID</th>
+          <th class="text-right px-4 py-2">Scan</th>
+          <th class="text-right px-4 py-2">Hosts</th>
+          <th class="text-right px-4 py-2">Open ports</th>
+          <th class="text-right px-4 py-2">Fingerprints</th>
+          <th class="text-left  px-4 py-2">Findings (by sev)</th>
+          <th class="text-left  px-4 py-2">Created</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in snapshots %}
+        <tr class="border-t border-slate-800">
+          <td class="px-4 py-2 text-right font-mono text-xs">{{ s.id }}</td>
+          <td class="px-4 py-2 text-right">
+            <a href="/ui/scans/{{ s.scan_id }}" class="text-emerald-400 hover:underline">
+              #{{ s.scan_id }}
+            </a>
+          </td>
+          <td class="px-4 py-2 text-right tabular-nums">{{ s.host_count }}</td>
+          <td class="px-4 py-2 text-right tabular-nums">{{ s.open_port_count }}</td>
+          <td class="px-4 py-2 text-right tabular-nums">{{ (s.fact_fingerprints or []) | length }}</td>
+          <td class="px-4 py-2 text-xs text-slate-300">
+            {% for sev, n in (s.finding_counts or {}).items() %}
+              <span class="pill pill--{{ {'critical':'failed','high':'failed','medium':'paused'}.get(sev, 'completed') }} text-xs">
+                {{ sev }}·{{ n }}
+              </span>
+            {% else %}<span class="text-slate-500">—</span>{% endfor %}
+          </td>
+          <td class="px-4 py-2 text-xs text-slate-400">
+            {{ s.created_at.strftime('%Y-%m-%d %H:%M') if s.created_at else '—' }}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="px-4 py-8 text-center text-slate-500 text-sm">
+          No snapshots yet. Run a scan, or start the continuous monitor above.
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="rounded-xl border border-slate-800 overflow-hidden">
+    <div class="px-4 py-2 bg-slate-900/80 text-xs uppercase tracking-wider text-slate-400">
+      Deltas
+    </div>
+    <table class="w-full text-sm">
+      <thead class="text-slate-400 text-xs">
+        <tr>
+          <th class="text-right px-4 py-2">ID</th>
+          <th class="text-right px-4 py-2">From → To</th>
+          <th class="text-right px-4 py-2">Added</th>
+          <th class="text-right px-4 py-2">Removed</th>
+          <th class="text-left  px-4 py-2">Severity shift</th>
+          <th class="text-left  px-4 py-2">Created</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in deltas %}
+        <tr class="border-t border-slate-800">
+          <td class="px-4 py-2 text-right font-mono text-xs">{{ d.id }}</td>
+          <td class="px-4 py-2 text-right text-xs text-slate-400">
+            #{{ d.from_snapshot_id }} → #{{ d.to_snapshot_id }}
+          </td>
+          <td class="px-4 py-2 text-right tabular-nums text-emerald-400">
+            +{{ (d.added_fingerprints or []) | length }}
+          </td>
+          <td class="px-4 py-2 text-right tabular-nums text-rose-400">
+            −{{ (d.removed_fingerprints or []) | length }}
+          </td>
+          <td class="px-4 py-2 text-xs text-slate-300">
+            {% for sev, n in (d.severity_shift or {}).items() %}
+              <span class="pill pill--{{ 'failed' if n > 0 else 'completed' }} text-xs">
+                {{ sev }}{{ '+' if n >= 0 else '' }}{{ n }}
+              </span>
+            {% else %}<span class="text-slate-500">—</span>{% endfor %}
+          </td>
+          <td class="px-4 py-2 text-xs text-slate-400">
+            {{ d.created_at.strftime('%Y-%m-%d %H:%M') if d.created_at else '—' }}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="px-4 py-8 text-center text-slate-500 text-sm">
+          No deltas yet. At least two snapshots are needed to compute one.
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

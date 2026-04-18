@@ -1,0 +1,31 @@
+id: r.scan.nettacker.survey
+version: 2
+description: >
+  Run OWASP Nettacker's general survey module against each discovered host
+  to cover modules not covered by nmap/nuclei (SMB, FTP, weak creds etc).
+phase: vuln_scan
+priority: 60
+persona: [gray, black]
+tags: [vuln_scan, nettacker, owasp]
+
+when:
+  all:
+    - fact_type: port_open
+    - not_fact:
+        fact_type: vuln_custom
+        where:
+          host: "$fact.host"
+          tool: "nettacker"
+
+then:
+  action: execute_tool
+  tool: nettacker
+  params:
+    target: "$fact.host"
+    # The wrapper already injects ``-i $target -o /tmp/nettacker.json
+    # -g info`` — only pass module selection here.
+    flags:
+      - "-m"
+      - "all"
+  on_success:
+    - emit_fact: vuln_custom

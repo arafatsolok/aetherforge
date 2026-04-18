@@ -1,0 +1,41 @@
+id: r.recon.httpx.from_banner
+version: 1
+description: >
+  When nmap detects an HTTP service on a port, probe it with httpx to
+  capture status, title, tech fingerprint and TLS cert. Bridges
+  active-recon → vuln_scan: subsequent nuclei rules fire on the resulting
+  http_response facts.
+phase: enumeration
+priority: 78
+persona: [gray, black]
+tags: [recon, active, httpx, http]
+
+when:
+  all:
+    - fact_type: service_banner
+      where:
+        service: http
+    - not_fact:
+        fact_type: http_response
+        where:
+          host: "$fact.host"
+          port: "$fact.port"
+
+then:
+  action: execute_tool
+  tool: httpx
+  params:
+    target: "$fact.host"
+    flags:
+      - "-silent"
+      - "-json"
+      - "-tech-detect"
+      - "-status-code"
+      - "-title"
+      - "-server"
+      - "-tls-grab"
+      - "-ip"
+  on_success:
+    - emit_fact: http_response
+    - emit_fact: tls_cert
+    - emit_fact: dns_record

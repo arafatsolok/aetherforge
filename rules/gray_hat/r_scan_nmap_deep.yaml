@@ -1,0 +1,28 @@
+id: r.scan.nmap.deep
+version: 1
+description: >
+  When a port is found open but no service banner has been captured,
+  run version detection + default scripts against that single port.
+phase: enumeration
+priority: 75
+persona: [gray, black]
+tags: [enumeration, nmap, banners]
+
+when:
+  all:
+    - fact_type: port_open
+    - not_fact:
+        fact_type: service_banner
+        where:
+          host: "$fact.host"
+          port: "$fact.port"
+
+then:
+  action: execute_tool
+  tool: nmap
+  params:
+    target: "$fact.host"
+    ports:  ["$fact.port"]
+    flags:  ["-sT", "-Pn", "-sV", "-sC", "--version-intensity", "5"]
+  on_success:
+    - emit_fact: service_banner

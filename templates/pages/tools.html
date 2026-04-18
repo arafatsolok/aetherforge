@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}AetherForge — Tools{% endblock %}
+
+{% block content %}
+<section class="space-y-6">
+  <header class="flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-semibold">Tool registry</h1>
+      <p class="text-slate-400 text-sm">
+        {{ tools | length }} sandboxed wrappers. Sandbox: <code>--cap-drop=ALL</code>,
+        read-only rootfs, AppArmor, no-new-privs.
+      </p>
+    </div>
+  </header>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    {% for t in tools %}
+    <div class="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
+      <div class="flex items-start justify-between">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="text-lg font-semibold text-emerald-400">{{ t.name }}</span>
+            <span class="pill pill--running text-xs">{{ t.category }}</span>
+            <span class="text-xs text-slate-500">v{{ t.version }}</span>
+          </div>
+          <div class="text-xs text-slate-400 mt-1 font-mono">{{ t.image }}</div>
+        </div>
+        <span class="pill pill--{{ {'white':'completed','gray':'paused','black':'failed'}.get(persona_labels[t.min_persona_ordinal], 'running') }} text-xs">
+          ≥ {{ persona_labels[t.min_persona_ordinal] }}
+        </span>
+      </div>
+
+      <p class="text-sm text-slate-300 mt-3">{{ t.description or 'No description.' }}</p>
+
+      <dl class="grid grid-cols-2 gap-2 mt-3 text-xs">
+        <div>
+          <dt class="text-slate-500 uppercase">Timeout</dt>
+          <dd class="text-slate-300">{{ t.default_timeout_seconds }}s</dd>
+        </div>
+        <div>
+          <dt class="text-slate-500 uppercase">Memory</dt>
+          <dd class="text-slate-300">
+            {{ (t.default_memory_bytes / 1048576) | round(0, 'floor') | int }} MiB
+          </dd>
+        </div>
+        <div>
+          <dt class="text-slate-500 uppercase">JSON output</dt>
+          <dd class="text-slate-300">{{ 'yes' if t.supports_json_output else 'no' }}</dd>
+        </div>
+        <div>
+          <dt class="text-slate-500 uppercase">Caps</dt>
+          <dd class="text-slate-300 font-mono">
+            {{ t.cap_add | join(', ') if t.cap_add else 'none' }}
+          </dd>
+        </div>
+      </dl>
+
+      {% if t.labels %}
+      <div class="mt-3 space-x-1">
+        {% for l in t.labels %}
+          <span class="text-xs text-slate-400 px-2 py-0.5 border border-slate-700 rounded">{{ l }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    {% else %}
+    <div class="col-span-full rounded-lg border border-slate-800 bg-slate-900/40 p-8 text-center text-slate-500">
+      Registry is empty — check <code>configs/tools.yaml</code>.
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

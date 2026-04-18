@@ -1,0 +1,297 @@
+# =============================================================================
+# AetherForge — Autonomous VAPT Orchestrator
+# Phase 0 stack: infrastructure + orchestrator + worker
+# Heavy security tools are gated behind `profiles:` — enable with --profile flag
+# =============================================================================
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
+
+x-restart: &default-restart
+  restart: unless-stopped
+
+networks:
+  # Backplane for orchestrator <-> infra (postgres / redis / temporal)
+  aetherforge_backplane:
+    name: aetherforge_backplane
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+  # Isolated target-side network: tool containers run here so they cannot
+  # accidentally egress to the public internet. Uplink to the replica
+  # environment is configured in configs/targets.yaml.
+  aetherforge_targets:
+    name: aetherforge_targets
+    driver: bridge
+    internal: false  # set to true if replicas live on this bridge
+    ipam:
+      config:
+        - subnet: 10.77.0.0/16
+
+volumes:
+  postgres_data:
+  redis_data:
+  temporal_data:
+  openvas_data:
+  wazuh_config:
+  wazuh_logs:
+  artifacts:
+
+services:
+  # ---------------------------------------------------------------------------
+  # Persistence
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: aetherforge-postgres
+    <<: *default-restart
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-aetherforge}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-aetherforge}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/postgres-init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    networks: [aetherforge_backplane]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    logging: *default-logging
+
+  redis:
+    image: redis:7-alpine
+    container_name: aetherforge-redis
+    <<: *default-restart
+    command:
+      - "redis-server"
+      - "--requirepass"
+      - "${REDIS_PASSWORD:?REDIS_PASSWORD is required in .env}"
+      - "--appendonly"
+      - "yes"
+      - "--maxmemory"
+      - "512mb"
+      - "--maxmemory-policy"
+      - "allkeys-lru"
+    volumes:
+      - redis_data:/data
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    networks: [aetherforge_backplane]
+    healthcheck:
+      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging: *default-logging
+
+  # ---------------------------------------------------------------------------
+  # Temporal workflow engine
+  # ---------------------------------------------------------------------------
+  temporal:
+    image: temporalio/auto-setup:1.24.2
+    container_name: aetherforge-temporal
+    <<: *default-restart
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB: postgres12
+      DB_PORT: 5432
+      POSTGRES_SEEDS: postgres
+      POSTGRES_USER: ${POSTGRES_USER:-aetherforge}
+      POSTGRES_PWD: ${POSTGRES_PASSWORD}
+      DYNAMIC_CONFIG_FILE_PATH: config/dynamicconfig/aetherforge.yaml
+      LOG_LEVEL: info
+    volumes:
+      - ./configs/temporal:/etc/temporal/config/dynamicconfig:ro
+    ports:
+      - "127.0.0.1:${TEMPORAL_GRPC_PORT:-7233}:7233"
+    networks: [aetherforge_backplane]
+    logging: *default-logging
+
+  temporal-ui:
+    image: temporalio/ui:2.27.3
+    container_name: aetherforge-temporal-ui
+    <<: *default-restart
+    depends_on:
+      - temporal
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_CORS_ORIGINS: "http://localhost:8000,http://127.0.0.1:8000"
+    ports:
+      - "127.0.0.1:${TEMPORAL_UI_PORT:-8088}:8080"
+    networks: [aetherforge_backplane]
+    logging: *default-logging
+
+  # ---------------------------------------------------------------------------
+  # Orchestrator API + HTMX dashboard
+  # ---------------------------------------------------------------------------
+  orchestrator:
+    build:
+      context: .
+      dockerfile: docker/orchestrator/Dockerfile
+      args:
+        PYTHON_VERSION: "3.12"
+    image: aetherforge/orchestrator:latest
+    container_name: aetherforge-orchestrator
+    <<: *default-restart
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      temporal:
+        condition: service_started
+    env_file: .env
+    environment:
+      AETHERFORGE_MODE: api
+      AETHERFORGE_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-aetherforge}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aetherforge}
+      AETHERFORGE_REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      AETHERFORGE_TEMPORAL_HOST: temporal:7233
+      AETHERFORGE_METASPLOIT_HOST: metasploit
+      AETHERFORGE_WAZUH_HOST: wazuh-manager
+    ports:
+      - "127.0.0.1:${API_PORT:-8000}:8000"
+    volumes:
+      - ./app:/opt/aetherforge/app:ro
+      - ./templates:/opt/aetherforge/templates:ro
+      - ./static:/opt/aetherforge/static:ro
+      - ./rules:/opt/aetherforge/rules
+      - ./configs:/opt/aetherforge/configs:ro
+      - ./migrations:/opt/aetherforge/migrations
+      - ./scripts:/opt/aetherforge/scripts:ro
+      - artifacts:/opt/aetherforge/data/artifacts
+      # NOTE: Docker socket is mounted so the orchestrator can spawn
+      # per-scan tool containers. This is a privileged capability — run
+      # AetherForge only on isolated test/lab hosts.
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - aetherforge_backplane
+      - aetherforge_targets
+    healthcheck:
+      test: ["CMD", "python", "-m", "scripts.healthcheck", "--role", "api"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    logging: *default-logging
+
+  # ---------------------------------------------------------------------------
+  # Temporal worker + RQ task runner (runs the autonomous loop itself)
+  # ---------------------------------------------------------------------------
+  worker:
+    build:
+      context: .
+      dockerfile: docker/worker/Dockerfile
+      args:
+        PYTHON_VERSION: "3.12"
+    image: aetherforge/worker:latest
+    <<: *default-restart
+    depends_on:
+      # L3 — orchestrator runs init_db (extensions + ping) on startup; the
+      # worker must wait until that's *healthy* (not just *started*) so it
+      # never races a partially-initialised DB. Postgres + Redis come along
+      # for free since the orchestrator already gates on them.
+      orchestrator:
+        condition: service_healthy
+      temporal:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      AETHERFORGE_MODE: worker
+      AETHERFORGE_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-aetherforge}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aetherforge}
+      AETHERFORGE_REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      AETHERFORGE_TEMPORAL_HOST: temporal:7233
+      AETHERFORGE_TEMPORAL_TASK_QUEUE: ${TEMPORAL_TASK_QUEUE:-aetherforge-main}
+    volumes:
+      - ./app:/opt/aetherforge/app:ro
+      - ./rules:/opt/aetherforge/rules
+      - ./configs:/opt/aetherforge/configs:ro
+      - ./scripts:/opt/aetherforge/scripts:ro
+      - artifacts:/opt/aetherforge/data/artifacts
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - aetherforge_backplane
+      - aetherforge_targets
+    deploy:
+      replicas: ${WORKER_REPLICAS:-2}
+    logging: *default-logging
+
+  # ---------------------------------------------------------------------------
+  # Long-running external security tools (profile-gated)
+  # ---------------------------------------------------------------------------
+
+  # Metasploit RPC daemon (exploit phase)
+  metasploit:
+    build:
+      context: docker/tools/metasploit
+      dockerfile: Dockerfile
+    image: aetherforge/metasploit:latest
+    container_name: aetherforge-metasploit
+    <<: *default-restart
+    environment:
+      MSF_RPC_USER: ${MSF_RPC_USER:-aetherforge}
+      MSF_RPC_PASS: ${MSF_RPC_PASS:?MSF_RPC_PASS is required in .env}
+    ports:
+      - "127.0.0.1:55553:55553"
+    networks:
+      - aetherforge_backplane
+      - aetherforge_targets
+    logging: *default-logging
+    profiles: [exploit, full]
+
+  # OpenVAS / Greenbone vulnerability scanner
+  openvas:
+    image: immauss/openvas:22.4.41
+    container_name: aetherforge-openvas
+    <<: *default-restart
+    environment:
+      PASSWORD: ${OPENVAS_PASSWORD:?OPENVAS_PASSWORD is required in .env}
+      USERNAME: admin
+      SKIPSYNC: "false"
+    ports:
+      - "127.0.0.1:9392:9392"
+    volumes:
+      - openvas_data:/data
+    networks:
+      - aetherforge_backplane
+      - aetherforge_targets
+    logging: *default-logging
+    profiles: [scan, full]
+
+  # Wazuh Manager (SIEM + HIDS integration)
+  wazuh-manager:
+    image: wazuh/wazuh-manager:4.8.2
+    container_name: aetherforge-wazuh-manager
+    <<: *default-restart
+    ulimits:
+      memlock: {soft: -1, hard: -1}
+      nofile: {soft: 655360, hard: 655360}
+    environment:
+      INDEXER_URL: ""
+      FILEBEAT_SSL_VERIFICATION_MODE: "none"
+    ports:
+      - "1514:1514/udp"
+      - "1515:1515"
+      - "127.0.0.1:55000:55000"
+    volumes:
+      - wazuh_config:/var/ossec/etc
+      - wazuh_logs:/var/ossec/logs
+    networks: [aetherforge_backplane]
+    logging: *default-logging
+    profiles: [monitor, full]

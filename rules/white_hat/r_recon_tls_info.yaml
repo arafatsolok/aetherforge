@@ -1,0 +1,24 @@
+id: r.recon.tls.info
+version: 1
+description: >
+  Info-level finding when a TLS cert is captured. Captures issuer + SAN
+  inventory for compliance reporting; no active probing.
+phase: recon.passive
+priority: 50
+persona: [white, gray, black]
+tags: [recon, passive, tls]
+
+when:
+  fact_type: tls_cert
+
+then:
+  action: emit_finding
+  finding:
+    rule_id: r.recon.tls.info
+    tool: httpx
+    title: "TLS certificate observed"
+    severity: info
+    affected:
+      host: "$fact.host"
+      port: "$fact.port"
+      issuer: "$fact.issuer"

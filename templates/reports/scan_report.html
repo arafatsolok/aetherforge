@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>AetherForge — Scan Report {{ scan.ulid }}</title>
+  <style>
+    @page { size: A4; margin: 18mm 14mm 18mm 14mm; }
+    * { box-sizing: border-box; }
+    body { font-family: "Helvetica", Arial, sans-serif; color: #0f172a;
+           font-size: 10.5pt; line-height: 1.4; }
+    h1, h2, h3 { color: #0f172a; margin: 0 0 6pt; }
+    h1 { font-size: 22pt; border-bottom: 2pt solid #0f172a; padding-bottom: 4pt; }
+    h2 { font-size: 14pt; margin-top: 18pt; border-bottom: 1pt solid #cbd5e1; padding-bottom: 3pt; }
+    h3 { font-size: 11pt; margin-top: 10pt; }
+    .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4pt 16pt; margin-top: 6pt; }
+    .meta-grid div { font-size: 9.5pt; }
+    .meta-grid b { color: #475569; }
+    .pill { display: inline-block; padding: 2pt 8pt; border-radius: 9pt;
+            font-weight: 600; color: #fff; font-size: 9pt; }
+    .pill.critical { background: #dc2626; }
+    .pill.high     { background: #ea580c; }
+    .pill.medium   { background: #ca8a04; }
+    .pill.low      { background: #65a30d; }
+    .pill.info     { background: #0284c7; }
+    .pill.muted    { background: #64748b; }
+
+    table { width: 100%; border-collapse: collapse; margin-top: 8pt; }
+    table th, table td { border: 0.5pt solid #cbd5e1; padding: 5pt 6pt; text-align: left;
+                          vertical-align: top; font-size: 9.5pt; }
+    table th { background: #f1f5f9; font-weight: 600; color: #334155; }
+
+    .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8pt; margin-top: 8pt; }
+    .summary-card { border: 1pt solid #e2e8f0; border-radius: 6pt; padding: 8pt 10pt; }
+    .summary-card .label { font-size: 8pt; color: #64748b; text-transform: uppercase; letter-spacing: 0.5pt; }
+    .summary-card .value { font-size: 18pt; font-weight: 700; color: #0f172a; }
+
+    .finding { border: 1pt solid #e2e8f0; border-radius: 6pt; padding: 8pt 10pt;
+                margin: 8pt 0; page-break-inside: avoid; }
+    .finding .header { display: flex; justify-content: space-between; align-items: center; }
+    .finding .title { font-weight: 600; font-size: 11pt; }
+    .finding .meta-row { font-size: 9pt; color: #475569; margin-top: 4pt; }
+    .finding .desc { font-size: 9.5pt; margin-top: 6pt; color: #334155; }
+    .finding pre { background: #f8fafc; padding: 4pt; border-radius: 3pt;
+                    overflow-wrap: anywhere; white-space: pre-wrap; font-size: 8pt; max-height: 100pt; }
+
+    .audit-table tr td:nth-child(1),
+    .audit-table tr td:nth-child(2) { white-space: nowrap; }
+
+    footer { position: fixed; bottom: 6mm; left: 14mm; right: 14mm;
+              font-size: 8pt; color: #64748b; border-top: 0.3pt solid #e2e8f0; padding-top: 3pt; }
+  </style>
+</head>
+<body>
+
+  <h1>AetherForge Scan Report</h1>
+
+  <div class="meta-grid">
+    <div><b>Scan ULID:</b> {{ scan.ulid }}</div>
+    <div><b>State:</b> {{ scan.state }}</div>
+    <div><b>Persona:</b>
+      <span class="pill muted">{{ scan.persona }}</span>
+    </div>
+    <div><b>Started by:</b> {{ scan.started_by }}</div>
+    <div><b>Started:</b> {{ scan.started_at or '—' }}</div>
+    <div><b>Finished:</b> {{ scan.finished_at or '—' }}</div>
+    <div><b>Target:</b> {{ target.slug }}</div>
+    <div><b>Scope:</b> {{ target.cidrs | join(', ') }}</div>
+    <div><b>Replica only:</b> {{ 'YES' if target.replica_only else 'no' }}</div>
+    <div><b>Terminal reason:</b> {{ scan.terminal_reason or '—' }}</div>
+  </div>
+
+  <h2>Executive summary</h2>
+  <div class="summary-grid">
+    <div class="summary-card">
+      <div class="label">Iterations</div><div class="value">{{ summary.iterations }}</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Executions</div><div class="value">{{ summary.executions_total }}</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Facts</div><div class="value">{{ summary.facts_total }}</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Findings</div><div class="value">{{ summary.findings_total }}</div>
+    </div>
+  </div>
+
+  <h3 style="margin-top: 14pt;">Severity breakdown</h3>
+  <div>
+    {% for sev in ['critical','high','medium','low','info'] %}
+      <span class="pill {{ sev }}">
+        {{ sev }} · {{ summary.severity_counts.get(sev, 0) }}
+      </span>
+    {% endfor %}
+  </div>
+
+  <h3 style="margin-top: 12pt;">Fact inventory</h3>
+  <table>
+    <thead><tr><th>Fact type</th><th>Count</th></tr></thead>
+    <tbody>
+      {% for ftype, n in summary.fact_types.items() %}
+        <tr><td>{{ ftype }}</td><td>{{ n }}</td></tr>
+      {% else %}
+        <tr><td colspan="2"><em>none</em></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Findings</h2>
+  {% if findings %}
+    {% for f in findings %}
+      <div class="finding">
+        <div class="header">
+          <div class="title">
+            <span class="pill {{ f.severity }}">{{ f.severity }}</span>
+            {{ f.title }}
+          </div>
+          <div>
+            {% if f.cvss_score %}<span class="pill muted">CVSS {{ "%.1f" | format(f.cvss_score) }}</span>{% endif %}
+            {% if f.cve_id %}<span class="pill muted">{{ f.cve_id }}</span>{% endif %}
+          </div>
+        </div>
+        <div class="meta-row">
+          <b>Tool:</b> {{ f.tool }} · <b>Rule:</b> {{ f.rule_id }}
+          {% if f.affected.host %} · <b>Host:</b> {{ f.affected.host }}{% endif %}
+          {% if f.affected.port %} · <b>Port:</b> {{ f.affected.port }}{% endif %}
+          {% if f.affected.url %}  · <b>URL:</b> {{ f.affected.url }}{% endif %}
+          · <b>Status:</b> {{ f.status }}
+        </div>
+        {% if f.description %}<div class="desc">{{ f.description }}</div>{% endif %}
+        {% if f.remediation %}<div class="desc"><b>Remediation:</b> {{ f.remediation }}</div>{% endif %}
+        {% if f.triage_notes %}<div class="desc"><b>Triage notes:</b> {{ f.triage_notes }}</div>{% endif %}
+      </div>
+    {% endfor %}
+  {% else %}
+    <p><em>No findings raised in this scan.</em></p>
+  {% endif %}
+
+  <h2>Audit log</h2>
+  <table class="audit-table">
+    <thead>
+      <tr><th>Seq</th><th>Time</th><th>Event</th><th>Rule</th><th>Persona</th></tr>
+    </thead>
+    <tbody>
+      {% for a in audit %}
+        <tr>
+          <td>{{ a.sequence }}</td>
+          <td>{{ a.created_at[11:19] if a.created_at else '—' }}</td>
+          <td><code>{{ a.event }}</code></td>
+          <td>{{ a.rule_id or '—' }}</td>
+          <td>{{ a.persona or '—' }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <footer>
+    AetherForge — Autonomous VAPT Orchestrator · Generated for scan {{ scan.ulid }}
+  </footer>
+</body>
+</html>

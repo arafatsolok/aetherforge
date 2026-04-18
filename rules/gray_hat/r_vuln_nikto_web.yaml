@@ -1,0 +1,31 @@
+id: r.vuln.nikto.web
+version: 1
+description: >
+  Legacy-style web vulnerability sweep with Nikto for every HTTP endpoint.
+  Complements Nuclei with OS/CGI-level checks.
+phase: vuln_scan
+priority: 65
+persona: [gray, black]
+tags: [vuln_scan, nikto, web, legacy]
+
+when:
+  all:
+    - fact_type: http_response
+      where:
+        status_code:
+          in: [200, 301, 302, 401, 403]
+    - not_fact:
+        fact_type: vuln_custom
+        where:
+          host: "$fact.host"
+          port: "$fact.port"
+          tool: "nikto"
+
+then:
+  action: execute_tool
+  tool: nikto
+  params:
+    target: "$fact.url"
+    flags: ["-Format", "json", "-Tuning", "123bde", "-nointeractive"]
+  on_success:
+    - emit_fact: vuln_custom

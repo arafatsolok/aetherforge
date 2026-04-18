@@ -1,0 +1,38 @@
+id: r.enum.ffuf.dirs
+version: 1
+description: >
+  Content discovery with ffuf against HTTP endpoints returning 200 or 403.
+  Emits web_endpoint facts for each hit so exploitation rules can target them.
+phase: enumeration
+priority: 55
+persona: [gray, black]
+tags: [enumeration, ffuf, web]
+
+when:
+  all:
+    - fact_type: http_response
+      where:
+        status_code:
+          in: [200, 403]
+    - not_fact:
+        fact_type: web_endpoint
+        where: { host: "$fact.host" }
+
+then:
+  action: execute_tool
+  tool: ffuf
+  params:
+    target: "$fact.url/FUZZ"
+    flags:
+      - "-w"
+      - "/wordlists/common.txt"
+      - "-mc"
+      - "200,301,302,307,401,403"
+      - "-o"
+      - "/output/ffuf.json"
+      - "-of"
+      - "json"
+      - "-rate"
+      - "60"
+  on_success:
+    - emit_fact: web_endpoint

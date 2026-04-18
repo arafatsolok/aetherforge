@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}AetherForge — Scan #{{ scan.id }}{% endblock %}
+
+{% block content %}
+<section class="space-y-6">
+  <div class="flex items-center justify-between">
+    <div>
+      <a href="/ui/scans" class="text-emerald-400 hover:underline text-sm">← scans</a>
+      <h1 class="text-2xl font-semibold mt-1">Scan #{{ scan.id }}</h1>
+      <p class="text-slate-400 text-xs font-mono">{{ scan.ulid }}</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <a href="/api/v1/reports/{{ scan.id }}?fmt=html" target="_blank"
+         class="px-3 py-1.5 text-sm border border-slate-700 hover:border-slate-500 rounded">HTML report</a>
+      <a href="/api/v1/reports/{{ scan.id }}?fmt=pdf" target="_blank"
+         class="px-3 py-1.5 text-sm bg-emerald-600/80 hover:bg-emerald-500 text-white rounded">PDF report</a>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div class="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
+      <div class="text-xs text-slate-400 uppercase">State</div>
+      <div class="mt-1 text-xl font-semibold">{{ scan.state }}</div>
+    </div>
+    <div class="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
+      <div class="text-xs text-slate-400 uppercase">Persona</div>
+      <div class="mt-1 text-xl font-semibold">{{ scan.persona }}</div>
+    </div>
+    <div class="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
+      <div class="text-xs text-slate-400 uppercase">Iter / Exec</div>
+      <div class="mt-1 text-xl font-semibold">{{ scan.iterations }} / {{ scan.executions_total }}</div>
+    </div>
+    <div class="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
+      <div class="text-xs text-slate-400 uppercase">Facts / Findings</div>
+      <div class="mt-1 text-xl font-semibold">{{ scan.facts_total }} / {{ scan.findings_total }}</div>
+    </div>
+  </div>
+
+  <!-- Live audit log via SSE -->
+  <div class="rounded-xl border border-slate-800 overflow-hidden">
+    <div class="px-4 py-2 bg-slate-900/80 text-xs uppercase tracking-wider text-slate-400 flex items-center gap-2">
+      <span>Audit log</span>
+      <span class="ml-auto text-emerald-400 text-xs"
+            id="sse-status">live</span>
+    </div>
+    <div class="max-h-[420px] overflow-y-auto bg-slate-950 font-mono text-xs">
+      <table class="w-full">
+        <tbody hx-ext="sse"
+               sse-connect="/api/v1/audit/scans/{{ scan.id }}/sse"
+               sse-swap="audit"
+               hx-swap="afterbegin">
+          {% for a in audit %}
+          <tr class="border-b border-slate-900/60">
+            <td class="px-3 py-1 w-12 text-slate-500">{{ a.sequence }}</td>
+            <td class="px-3 py-1 w-24 text-slate-400">{{ a.created_at.strftime('%H:%M:%S') if a.created_at else '—' }}</td>
+            <td class="px-3 py-1 text-emerald-400">{{ a.event }}</td>
+            <td class="px-3 py-1 text-slate-300">{{ a.rule_id or '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Findings for this scan -->
+  <div class="rounded-xl border border-slate-800 overflow-hidden">
+    <div class="px-4 py-2 bg-slate-900/80 text-xs uppercase tracking-wider text-slate-400">
+      Findings ({{ findings | length }})
+    </div>
+    <div class="bg-slate-950">
+      {% for f in findings %}
+      <div class="px-4 py-3 border-b border-slate-900/60 flex items-center justify-between">
+        <div>
+          <span class="pill pill--{{ {'critical':'failed','high':'failed','medium':'paused'}.get(f.severity, 'completed') }}">
+            {{ f.severity }}
+          </span>
+          <span class="ml-2">{{ f.title }}</span>
+        </div>
+        <span class="text-xs text-slate-500">{{ f.tool }} · {{ f.rule_id }}</span>
+      </div>
+      {% else %}
+      <div class="px-4 py-8 text-center text-slate-500 text-sm">No findings.</div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endblock %}

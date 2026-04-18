@@ -1,0 +1,41 @@
+id: r.vuln.nuclei.auto
+version: 2
+description: >
+  Run Nuclei against every fingerprinted HTTP endpoint, limited to fast
+  high-signal template categories so it finishes in seconds. Operators
+  can crank up via per-scan overrides.
+phase: vuln_scan
+priority: 70
+persona: [gray, black]
+tags: [vuln_scan, nuclei, web]
+
+when:
+  all:
+    - fact_type: http_response
+    - not_fact:
+        fact_type: vuln_nuclei
+        where:
+          host: "$fact.host"
+          port: "$fact.port"
+
+then:
+  action: execute_tool
+  tool: nuclei
+  params:
+    target: "$fact.url"
+    flags:
+      - "-silent"
+      - "-jsonl"
+      - "-tags"
+      - "tech,exposure,cve"
+      - "-severity"
+      - "medium,high,critical"
+      - "-rl"
+      - "200"
+      - "-c"
+      - "25"
+      - "-timeout"
+      - "5"
+      - "-disable-update-check"
+  on_success:
+    - emit_fact: vuln_nuclei

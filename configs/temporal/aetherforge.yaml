@@ -1,0 +1,27 @@
+# Temporal dynamic configuration — tuning knobs Temporal reads at runtime.
+# This file is mounted at /etc/temporal/config/dynamicconfig/ inside the
+# temporal container.
+
+# Increase default task-queue RPS for our autonomous loop.
+frontend.rps:
+  - value: 2400
+
+matching.rps:
+  - value: 2400
+
+# Retention: keep completed workflow histories for 14 days. Long enough to
+# audit; short enough to keep the DB lean.
+system.retentionDays:
+  - value: 14
+
+# Visibility — allow archival queries for completed scans.
+system.visibilityWritingMode:
+  - value: "on"
+
+# Worker build-id tolerance — allows blue/green worker deploys.
+worker.buildIdBasedVersioning:
+  - value: true
+
+# Rate-limit how many activities a single workflow can kick off per second.
+limit.maxWorkflowTaskStartedCount:
+  - value: 1024
