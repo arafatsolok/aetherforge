@@ -45,6 +45,37 @@ RUN pip install --upgrade pip wheel setuptools \
 
 
 # -----------------------------------------------------------------------------
+# Stage 1b — compile Tailwind CSS with the standalone binary (no Node)
+# Produces /out/app.css — one minified file, built from the templates in
+# the repo. Replaces the `cdn.tailwindcss.com` <script> that Tailwind
+# itself flags as "should not be used in production".
+# -----------------------------------------------------------------------------
+FROM debian:bookworm-slim AS css-builder
+
+ARG TAILWIND_VERSION=latest
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates curl \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN case "$(dpkg --print-architecture)" in \
+      amd64) ARCH=x64 ;; \
+      arm64) ARCH=arm64 ;; \
+      *)     echo "unsupported arch" && exit 1 ;; \
+    esac \
+ && curl -fsSL \
+      "https://github.com/tailwindlabs/tailwindcss/releases/${TAILWIND_VERSION}/download/tailwindcss-linux-${ARCH}" \
+      -o /usr/local/bin/tailwindcss \
+ && chmod +x /usr/local/bin/tailwindcss
+
+WORKDIR /src
+COPY templates       ./templates
+COPY static/css      ./static/css
+
+RUN mkdir -p /out \
+ && tailwindcss -i static/css/input.css -o /out/app.css --minify
+
+
+# -----------------------------------------------------------------------------
 # Stage 2 — runtime: minimal image with only what is needed at run time
 # -----------------------------------------------------------------------------
 FROM python:${PYTHON_VERSION}-slim-bookworm AS runtime
@@ -104,6 +135,11 @@ COPY --chown=aetherforge:aetherforge rules      ./rules
 COPY --chown=aetherforge:aetherforge configs    ./configs
 COPY --chown=aetherforge:aetherforge migrations ./migrations
 COPY --chown=aetherforge:aetherforge scripts    ./scripts
+
+# Overwrite the committed app.css with the freshly-built one from the
+# css-builder stage. Keeping both (committed + rebuilt) means the repo
+# stays browsable without Docker, but every image carries the latest.
+COPY --from=css-builder --chown=aetherforge:aetherforge /out/app.css ./static/css/app.css
 
 # Pre-create + chown the artefact dir so the named volume's first-mount
 # permission inherits correctly. Entrypoint also chowns at boot for the

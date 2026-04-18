@@ -1,5 +1,15 @@
-/* AetherForge — dashboard overrides.
-   Tailwind provides the base; this file only holds truly custom rules. */
+/* AetherForge — pre-compiled Tailwind + dashboard overrides.
+   Built by the orchestrator Dockerfile via the tailwindcss standalone
+   binary (no Node.js runtime dep). Do NOT load cdn.tailwindcss.com in
+   production. */
+
+@import "tailwindcss";
+
+/* Scan every Jinja template for class names. Paths are relative to
+   this file (static/css/…). */
+@source "../../templates";
+
+/* ---- Custom rules (kept after @import so @layer cascades correctly) --- */
 
 :root {
   --af-accent: #34d399;       /* emerald-400 */
@@ -8,11 +18,10 @@
 }
 
 html {
-  scheme: dark;
   color-scheme: dark;
 }
 
-/* Scan state pills */
+/* Scan-state pills */
 .pill {
   display: inline-flex;
   align-items: center;
@@ -22,8 +31,11 @@ html {
   font-size: 0.75rem;
   font-weight: 500;
   border: 1px solid rgba(148, 163, 184, 0.25);
+  white-space: nowrap;
 }
 .pill--running   { background: rgba(52, 211, 153, 0.1); color: #6ee7b7; }
 .pill--paused    { background: rgba(250, 204, 21, 0.1); color: #fde68a; }
 .pill--completed { background: rgba(56, 189, 248, 0.1); color: #7dd3fc; }
 .pill--failed    { background: rgba(244, 114, 182, 0.1); color: #f9a8d4; }
+
+[x-cloak] { display: none !important; }

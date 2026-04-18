@@ -45,6 +45,10 @@ class APIKeyAuthMiddleware(BaseHTTPMiddleware):
         "/health", "/ready", "/metrics",
         "/static/", "/openapi.json", "/docs", "/redoc",
         "/ui/login", "/ui/logout",
+        # Browsers auto-probe this regardless of the <link rel="icon">.
+        # Keep it public so we never emit an auth.api.denied for a UA
+        # artefact request.
+        "/favicon.ico",
     )
 
     def __init__(self, app, *, settings: Settings) -> None:  # type: ignore[no-untyped-def]
