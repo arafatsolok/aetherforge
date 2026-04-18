@@ -68,6 +68,20 @@ def _audit_args(
     return [scan_id, event, persona, actor, rule_id, payload or {}]
 
 
+def _dedup_key(rule_id: str, fingerprint: str | None) -> str:
+    """Compose the per-fact dedup key consumed by the rule engine.
+
+    A rule that fired against fact ``fp1`` MUST be free to fire again
+    against ``fp2`` — otherwise per-subdomain rules (httpx fingerprint,
+    nuclei scan) stop after the first match. Sentinel matches (rules
+    with no triggering fact) get the bare rule_id so they keep their
+    fire-once behaviour.
+    """
+    if fingerprint:
+        return f"{rule_id}@{fingerprint}"
+    return rule_id
+
+
 @workflow.defn(name="AutonomousScanWorkflow")
 class AutonomousScanWorkflow:
 
@@ -192,7 +206,10 @@ class AutonomousScanWorkflow:
 
             if not outcome.has_action:
                 if outcome.rule_id and outcome.rejection_reason:
-                    self._executed_rule_ids.add(outcome.rule_id)
+                    self._executed_rule_ids.add(
+                        _dedup_key(outcome.rule_id,
+                                   outcome.triggering_fact_fingerprint),
+                    )
                     await workflow.execute_activity(
                         _ACT_AUDIT,
                         args=_audit_args(
@@ -208,7 +225,14 @@ class AutonomousScanWorkflow:
                 break
 
             assert outcome.invocation is not None
-            self._executed_rule_ids.add(outcome.rule_id)  # type: ignore[arg-type]
+            # Per-fact dedup — a rule can fire again against a DIFFERENT
+            # fact (e.g. r.recon.dns.a_record running per subdomain). Bare
+            # rule_id is reserved for sentinel matches with no triggering
+            # fact (genuine fire-once rules).
+            self._executed_rule_ids.add(
+                _dedup_key(outcome.rule_id,             # type: ignore[arg-type]
+                           outcome.triggering_fact_fingerprint),
+            )
 
             await workflow.execute_activity(
                 _ACT_AUDIT,

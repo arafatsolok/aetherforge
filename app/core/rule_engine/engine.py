@@ -67,7 +67,18 @@ class DeterministicRuleEngine:
         Rules are filtered by:
           1. ``enabled`` (from metadata)
           2. persona — ``rule.persona`` must include the active one
-          3. not already fired in this iteration (``executed_rule_ids``)
+          3. not already fired against the SAME triggering fact
+             (``executed_rule_ids`` — see below)
+
+        ``executed_rule_ids`` carries both shapes:
+
+          * ``"r.x.y"``                 — fire-once rules (sentinel match,
+                                          i.e. rules with no triggering fact)
+          * ``"r.x.y@<fingerprint>"``   — per-fact rules; the rule may fire
+                                          again against a DIFFERENT fact
+
+        This is what lets ``r.recon.dns.a_record`` fan out across every
+        discovered subdomain instead of stopping after the first one.
 
         Among the survivors, DSL evaluation produces zero-or-more
         ``RuleMatch`` per rule. Order:
@@ -80,9 +91,12 @@ class DeterministicRuleEngine:
         for rule in self._by_id.values():
             if not rule.metadata.get("enabled", True):
                 continue
-            if rule.id in executed_rule_ids:
-                continue
             if persona not in rule.persona:
+                continue
+            # Skip if THIS rule (no triggering fact required) was already
+            # fired as a fire-once rule. Per-fact dedup happens inside the
+            # for loop below.
+            if rule.id in executed_rule_ids:
                 continue
 
             for pred_match in evaluate_when(rule.when, facts):
@@ -91,6 +105,11 @@ class DeterministicRuleEngine:
                     # `not_fact`-only match — synthesize a sentinel fact so
                     # downstream consumers always have one.
                     triggering = _SENTINEL_FACT
+                # Per-fact dedup key — a rule can fire many times with
+                # different facts but never twice with the SAME fact.
+                if triggering.fingerprint and \
+                        f"{rule.id}@{triggering.fingerprint}" in executed_rule_ids:
+                    continue
                 out.append(
                     RuleMatch(
                         rule=rule,
