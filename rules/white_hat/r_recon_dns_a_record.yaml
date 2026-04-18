@@ -1,5 +1,5 @@
 id: r.recon.dns.a_record
-version: 1
+version: 2
 description: >
   Resolve A records for every discovered subdomain. Cheap, runs for every
   persona.
@@ -22,6 +22,10 @@ then:
   tool: httpx
   params:
     target: "$fact.host"
-    flags:  ["-silent", "-json", "-ip", "-dns"]
+    # httpx doesn't have a -dns flag; `-ip` already returns the A records.
+    # Add `-tech-detect` + `-title` so the same probe fills ``service_banner``
+    # and ``http_response`` facts that downstream rules (vuln detection)
+    # expect.
+    flags: ["-silent", "-json", "-ip", "-tech-detect", "-title", "-follow-redirects"]
   on_success:
     - emit_fact: dns_record
