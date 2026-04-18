@@ -31,8 +31,19 @@ RUN addgroup -g 10110 -S scanner \
  && adduser  -u 10110 -G scanner -S -h /home/scanner scanner \
  && mkdir -p /output && chown scanner:scanner /output /wordlists
 
+# ffuf 2.x touches $HOME/.config/ffuf/scraper on startup — on a
+# read-only rootfs that crashes the process with
+# "open /home/scanner/.config/ffuf/scraper: no such file or directory".
+# Pre-create the directory so the file exists (empty is fine — ffuf
+# falls back silently). Also use /tmp as the output dir (rule passes
+# -o /output/... currently; /output is no longer writable, so any
+# -o target must land under /tmp).
+USER root
+RUN mkdir -p /home/scanner/.config/ffuf \
+ && chown -R scanner:scanner /home/scanner/.config
+
 USER scanner
-WORKDIR /home/scanner
+WORKDIR /tmp
 
 ENTRYPOINT ["tini", "--", "/usr/local/bin/ffuf"]
 CMD ["-V"]

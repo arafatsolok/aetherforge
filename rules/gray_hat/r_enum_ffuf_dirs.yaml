@@ -1,5 +1,5 @@
 id: r.enum.ffuf.dirs
-version: 1
+version: 2
 description: >
   Content discovery with ffuf against HTTP endpoints returning 200 or 403.
   Emits web_endpoint facts for each hit so exploitation rules can target them.
@@ -23,13 +23,17 @@ then:
   tool: ffuf
   params:
     target: "$fact.url/FUZZ"
+    # `-o /tmp/ffuf.json` instead of /output/ffuf.json — the sandbox's
+    # rootfs is read-only with only /tmp mounted as tmpfs. The stdout
+    # capture also carries the JSONL so the parser doesn't actually
+    # need to read the file back from the container.
     flags:
       - "-w"
       - "/wordlists/common.txt"
       - "-mc"
       - "200,301,302,307,401,403"
       - "-o"
-      - "/output/ffuf.json"
+      - "/tmp/ffuf.json"
       - "-of"
       - "json"
       - "-rate"

@@ -33,15 +33,20 @@ class EvasionProfile:
 
 
 # Pool of plausible-looking User-Agents (picked deterministically by rule id).
+# Kept strictly to LATEST desktop Chrome / Firefox / Safari variants —
+# mobile UAs (iPhone, Android) and older browser strings are disproportionately
+# flagged by WAFs (LiteSpeed + Cloudflare routinely 403 iPhone UAs paired with
+# POST bodies carrying XSS-looking payloads, which is exactly what nuclei's
+# tech-detect template sends).
 _UA_POOL: Final[tuple[str, ...]] = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_5) AppleWebKit/605.1.15 "
-    "(KHTML, like Gecko) Version/16.6 Safari/605.1.15",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 "
+    "(KHTML, like Gecko) Version/17.5 Safari/605.1.15",
     "Mozilla/5.0 (X11; Linux x86_64; rv:124.0) Gecko/20100101 Firefox/124.0",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0",
-    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 "
-    "(KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
 )
 
 # Decoy host pool for nmap -D — RFC1918 only so we never spoof real targets.

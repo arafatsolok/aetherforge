@@ -23,7 +23,12 @@ RUN addgroup -g 10105 -S scanner \
  && mkdir -p /output && chown scanner:scanner /output
 
 USER scanner
-WORKDIR /home/scanner
+# WORKDIR = /tmp because the sandbox mounts /tmp as tmpfs (rw) while
+# the rest of the rootfs is read-only. Nikto with `-Format json`
+# auto-names an output file in CWD; without a writable CWD it aborts
+# with "Unable to open 'nikto_<host>_<ts>.json' for write" AND
+# still-useful text output on stdout is silently lost.
+WORKDIR /tmp
 
 ENTRYPOINT ["tini", "--", "perl", "/opt/nikto/program/nikto.pl"]
 CMD ["-Version"]
