@@ -147,12 +147,24 @@ def _install_middleware(app: FastAPI) -> None:
     # Session cookie powers the /ui/login flow. Added LAST so it is the
     # outermost wrapper — request.session is populated before any
     # middleware downstream tries to read it.
+    #
+    # ``https_only`` defaults to ``settings.is_production`` (correct for
+    # internet-reachable deployments) but can be overridden via the env
+    # var below. This is the escape hatch for running production-mode
+    # locally over plain HTTP — without it, browsers refuse to send the
+    # ``Secure`` cookie on http://localhost and login appears to "work"
+    # but every subsequent request is unauthenticated.
+    https_only_env = os.environ.get("AETHERFORGE_SESSION_HTTPS_ONLY")
+    if https_only_env is None:
+        session_https_only = settings.is_production
+    else:
+        session_https_only = https_only_env not in ("0", "false", "False", "no")
     app.add_middleware(
         SessionMiddleware,
         secret_key=settings.secret_key.get_secret_value(),
         session_cookie="aetherforge_session",
         same_site="strict",
-        https_only=settings.is_production,
+        https_only=session_https_only,
         max_age=60 * 60 * 8,
     )
 
@@ -234,7 +246,17 @@ def _install_static_and_templates(app: FastAPI) -> None:
         # render <input name="_csrf" value="{{ csrf_token(request) }}">
         # without each route having to pass it explicitly.
         from app.api.middleware import csrf_token_for
+
+        def _is_authenticated(request) -> bool:                # type: ignore[no-untyped-def]
+            sess = getattr(request, "session", None)
+            return bool(isinstance(sess, dict) and sess.get("authenticated"))
+
+        def _auth_enabled() -> bool:
+            return settings.api_key is not None
+
         templates.env.globals["csrf_token"] = csrf_token_for
+        templates.env.globals["is_authenticated"] = _is_authenticated
+        templates.env.globals["auth_enabled"] = _auth_enabled
         app.state.templates = templates
 
 

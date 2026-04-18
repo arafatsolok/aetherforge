@@ -132,5 +132,5 @@ class TestSessionRotationOnLogin:
         # Failed login should redirect with error and NOT set a session cookie.
         # (It may set the CSRF cookie via the middleware, but session is
         #  untouched.)
-        assert "error=invalid+api+key" in (r.headers.get("location") or "")
+        assert "error=invalid_api_key" in (r.headers.get("location") or "")
         assert client.cookies.get("aetherforge_session", "") == ""

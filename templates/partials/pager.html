@@ -1,0 +1,35 @@
+{# Reusable pager. Expects `page`, `pages`, `total`, `size`,
+   `has_prev`, `has_next`, `prev_url`, `next_url` in the context.
+   Renders nothing when `total == 0` so empty pages stay clean. #}
+{% if total and pages and pages > 0 %}
+<nav class="flex items-center justify-between text-xs text-slate-400 mt-4"
+     aria-label="Pagination">
+  <span>
+    page <strong class="text-slate-200">{{ page }}</strong>
+    of <strong class="text-slate-200">{{ pages }}</strong>
+    · <strong class="text-slate-200">{{ total }}</strong> total
+  </span>
+  <span class="flex items-center gap-2">
+    {% if has_prev %}
+      <a href="{{ prev_url }}"
+         class="px-3 py-1 rounded border border-slate-700 hover:border-emerald-500/40 text-slate-200">
+        ← prev
+      </a>
+    {% else %}
+      <span class="px-3 py-1 rounded border border-slate-800 text-slate-600 cursor-not-allowed">
+        ← prev
+      </span>
+    {% endif %}
+    {% if has_next %}
+      <a href="{{ next_url }}"
+         class="px-3 py-1 rounded border border-slate-700 hover:border-emerald-500/40 text-slate-200">
+        next →
+      </a>
+    {% else %}
+      <span class="px-3 py-1 rounded border border-slate-800 text-slate-600 cursor-not-allowed">
+        next →
+      </span>
+    {% endif %}
+  </span>
+</nav>
+{% endif %}

@@ -112,7 +112,7 @@ class TestLoginCredential:
             follow_redirects=False,
         )
         assert r.status_code == 303
-        assert "error=invalid+api+key" in r.headers["location"]
+        assert "error=invalid_api_key" in r.headers["location"]
         assert client.cookies.get("aetherforge_session", "") == ""
 
     def test_correct_key_sets_authenticated_session(self) -> None:

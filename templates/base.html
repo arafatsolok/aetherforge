@@ -14,6 +14,8 @@
           integrity="sha384-0895/pl2MU10Hqc6jd4RvrthNlDiE9U1tWmX7WRESftEDRosgxNsQG/Ze9YMRzHq"
           crossorigin="anonymous"></script>
   <script src="https://unpkg.com/htmx-ext-sse@2.2.2"></script>
+  {# json-enc is required by the findings triage form (hx-vals js: + hx-ext="json-enc"). #}
+  <script src="https://unpkg.com/htmx-ext-json-enc@2.0.2"></script>
   <script defer src="https://unpkg.com/alpinejs@3.14.3/dist/cdn.min.js"></script>
   <link rel="stylesheet" href="/static/css/main.css" />
 </head>
@@ -45,12 +47,17 @@
         <a href="/docs" target="_blank" class="px-3 py-1.5 rounded text-slate-400 hover:text-slate-100">API</a>
         <a href="http://localhost:8088" target="_blank"
            class="px-3 py-1.5 rounded text-slate-400 hover:text-slate-100">Temporal</a>
+        {# Logout only renders when auth is enabled AND the operator is
+           signed in — avoids a confusing button on the login page and
+           in dev mode where there's no session to clear. #}
+        {% if auth_enabled() and is_authenticated(request) %}
         <form method="post" action="/ui/logout" class="inline">
           <input type="hidden" name="_csrf" value="{{ csrf_token(request) }}" />
           <button type="submit"
                   class="px-3 py-1.5 rounded text-slate-400 hover:text-slate-100 text-sm"
                   title="End session">Sign out</button>
         </form>
+        {% endif %}
       </nav>
     </div>
   </header>

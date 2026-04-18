@@ -25,8 +25,9 @@
           </div>
           <div class="text-xs text-slate-400 mt-1 font-mono">{{ t.image }}</div>
         </div>
-        <span class="pill pill--{{ {'white':'completed','gray':'paused','black':'failed'}.get(persona_labels[t.min_persona_ordinal], 'running') }} text-xs">
-          ≥ {{ persona_labels[t.min_persona_ordinal] }}
+        {% set p_label = persona_labels.get(t.min_persona_ordinal, 'unknown') %}
+        <span class="pill pill--{{ {'white':'completed','gray':'paused','black':'failed'}.get(p_label, 'running') }} text-xs">
+          ≥ {{ p_label }}
         </span>
       </div>
 

@@ -28,11 +28,23 @@ log = get_logger(__name__)
 # ---------------------------------------------------------------------------
 # Login / logout
 # ---------------------------------------------------------------------------
+# Whitelisted login error keys → human-readable messages. The query
+# parameter is constrained by ``pattern`` so the only way to get a
+# message on screen is for the server itself to redirect with one of
+# these keys — nothing user-controlled ever reaches the template.
+_LOGIN_ERRORS: dict[str, str] = {
+    "invalid_api_key":  "Invalid API key.",
+    "session_expired":  "Session expired — please sign in again.",
+    "missing_fields":   "API key is required.",
+}
+
+
 @router.get("/ui/login", response_class=HTMLResponse, include_in_schema=False)
 async def page_login(
     request: Request, settings: SettingsDep,
     next: str = Query("/", max_length=512),
-    error: str | None = Query(None, max_length=256),
+    error: str | None = Query(None, max_length=32,
+                              pattern="^(invalid_api_key|session_expired|missing_fields)?$"),
 ) -> HTMLResponse:
     if settings.api_key is None:
         # Auth disabled — the form is meaningless. Return BEFORE the
@@ -46,7 +58,11 @@ async def page_login(
     tpl = request.app.state.templates
     return tpl.TemplateResponse(
         request=request, name="pages/login.html",
-        context={"version": __version__, "next": next, "error": error},
+        context={
+            "version": __version__,
+            "next": _safe_next(next),
+            "error": _LOGIN_ERRORS.get(error) if error else None,
+        },
     )
 
 
@@ -61,7 +77,7 @@ async def submit_login(
     if not constant_time_eq(api_key, settings.api_key.get_secret_value()):
         log.warning("ui.login.failed",
                     client=request.client.host if request.client else "unknown")
-        return RedirectResponse("/ui/login?error=invalid+api+key", status_code=303)
+        return RedirectResponse("/ui/login?error=invalid_api_key", status_code=303)
 
     # B1 — defeat session fixation. Starlette's SessionMiddleware stores
     # state inside the signed cookie body, so .clear() + re-populate
@@ -197,10 +213,9 @@ async def page_scan_new(
 
 @router.post("/ui/scans/new", response_class=HTMLResponse, include_in_schema=False)
 async def submit_scan_new(
-    session: SessionDep, settings: SettingsDep,
+    request: Request, session: SessionDep, settings: SettingsDep,
     target_slug: str = Form(..., min_length=1, max_length=64),
     persona: str = Form(..., min_length=1, max_length=16),
-    started_by: str = Form("ui", max_length=128),
 ) -> RedirectResponse:
     from app.core.exceptions import ScopeViolation
     from app.repositories.target import TargetRepository
@@ -209,39 +224,50 @@ async def submit_scan_new(
     repo = TargetRepository(session)
     target = await repo.get_by_slug(target_slug)
     if target is None:
-        return RedirectResponse(
-            f"/ui/scans/new?error=target+{target_slug}+not+found", status_code=303,
-        )
+        return RedirectResponse("/ui/scans/new?error=target_not_found", status_code=303)
     try:
         persona_val = Persona(persona)
     except ValueError:
-        return RedirectResponse(
-            f"/ui/scans/new?error=invalid+persona+{persona}", status_code=303,
-        )
+        return RedirectResponse("/ui/scans/new?error=invalid_persona", status_code=303)
     orch = get_orchestrator(settings)
     try:
         scan = await orch.start_for_target(
             session=session, target=target,
-            persona=persona_val, started_by=started_by or "ui",
+            persona=persona_val, started_by=_started_by(request),
         )
-    except ScopeViolation as err:
-        return RedirectResponse(
-            f"/ui/scans/new?error=scope+{str(err).replace(' ', '+')}",
-            status_code=303,
-        )
-    except ValueError as err:
-        return RedirectResponse(
-            f"/ui/scans/new?error={str(err).replace(' ', '+')}",
-            status_code=303,
-        )
+    except ScopeViolation:
+        return RedirectResponse("/ui/scans/new?error=scope_violation", status_code=303)
+    except ValueError:
+        return RedirectResponse("/ui/scans/new?error=invalid_request", status_code=303)
     return RedirectResponse(f"/ui/scans/{scan.id}", status_code=303)
+
+
+def _started_by(request: Request) -> str:
+    """Return a server-controlled actor string for audit attribution.
+
+    Never trust an operator-controlled Form field for this — an attacker
+    who reaches the form (already authenticated) could otherwise spoof
+    arbitrary actor names in the audit log. ``ui:<sid>`` ties every
+    UI-driven action to the *session that produced it*, which the
+    server set at login time.
+    """
+    sess = getattr(request, "session", None)
+    if isinstance(sess, dict):
+        sid = sess.get("sid")
+        if sid:
+            return f"ui:{sid}"
+    return "ui"
 
 
 @router.get("/ui/findings", response_class=HTMLResponse, include_in_schema=False)
 async def page_findings(
     request: Request, session: SessionDep,
-    severity: str | None = Query(None),
-    status: str | None = Query(None),
+    severity: str | None = Query(None, max_length=16,
+                                  pattern="^(critical|high|medium|low|info)?$"),
+    status: str | None = Query(None, max_length=16,
+                               pattern="^(open|triaged|false_positive|fixed|wontfix)?$"),
+    page: int = Query(1, ge=1, le=10_000),
+    size: int = Query(50, ge=1, le=200),
 ) -> HTMLResponse:
     tpl = request.app.state.templates
     stmt = select(Finding)
@@ -249,6 +275,9 @@ async def page_findings(
         stmt = stmt.where(Finding.severity == severity)
     if status:
         stmt = stmt.where(Finding.status == status)
+    total = int((await session.execute(
+        select(func.count()).select_from(stmt.subquery())
+    )).scalar_one())
     sev_rank = case(
         (Finding.severity == "critical", 4),
         (Finding.severity == "high",     3),
@@ -256,7 +285,8 @@ async def page_findings(
         (Finding.severity == "low",      1),
         else_=0,
     )
-    stmt = stmt.order_by(sev_rank.desc(), desc(Finding.created_at)).limit(200)
+    stmt = stmt.order_by(sev_rank.desc(), desc(Finding.created_at)) \
+               .limit(size).offset((page - 1) * size)
     rows = list((await session.execute(stmt)).scalars().all())
     return tpl.TemplateResponse(
         request=request, name="pages/findings.html",
@@ -264,6 +294,10 @@ async def page_findings(
             "version": __version__, "findings": rows,
             "filter_severity": severity or "",
             "filter_status": status or "",
+            **_pagination(page=page, size=size, total=total,
+                          base_path="/ui/findings",
+                          extra={"severity": severity or "",
+                                 "status": status or ""}),
         },
     )
 
@@ -271,15 +305,49 @@ async def page_findings(
 @router.get("/ui/targets", response_class=HTMLResponse, include_in_schema=False)
 async def page_targets(
     request: Request, session: SessionDep,
+    page: int = Query(1, ge=1, le=10_000),
+    size: int = Query(50, ge=1, le=200),
 ) -> HTMLResponse:
     tpl = request.app.state.templates
+    total = int((await session.execute(
+        select(func.count()).select_from(select(Target).subquery())
+    )).scalar_one())
     rows = list((await session.execute(
         select(Target).order_by(desc(Target.id))
+        .limit(size).offset((page - 1) * size)
     )).scalars().all())
     return tpl.TemplateResponse(
         request=request, name="pages/targets.html",
-        context={"version": __version__, "targets": rows},
+        context={
+            "version": __version__, "targets": rows,
+            **_pagination(page=page, size=size, total=total,
+                          base_path="/ui/targets", extra={}),
+        },
     )
+
+
+def _pagination(*, page: int, size: int, total: int,
+                base_path: str, extra: dict[str, str]) -> dict[str, object]:
+    """Return a small dict the list templates can render Prev/Next from."""
+    import urllib.parse as up
+    extra_pairs = [(k, v) for k, v in extra.items() if v not in ("", None)]
+    pages = max(1, (total + size - 1) // size)
+    page = min(page, pages)
+
+    def _link(p: int) -> str:
+        qs = up.urlencode([*extra_pairs, ("page", p), ("size", size)])
+        return f"{base_path}?{qs}"
+
+    return {
+        "page": page,
+        "size": size,
+        "total": total,
+        "pages": pages,
+        "has_prev": page > 1,
+        "has_next": page < pages,
+        "prev_url": _link(page - 1) if page > 1 else "",
+        "next_url": _link(page + 1) if page < pages else "",
+    }
 
 
 @router.get("/ui/targets/new", response_class=HTMLResponse, include_in_schema=False)
@@ -387,9 +455,11 @@ async def page_scan_detail(
 @router.get("/ui/rules", response_class=HTMLResponse, include_in_schema=False)
 async def page_rules(
     request: Request, session: SessionDep,
-    phase: str | None = Query(None, max_length=32),
-    persona: str | None = Query(None, pattern="^(white|gray|black)$"),
-    enabled: str | None = Query(None, pattern="^(true|false)$"),
+    phase: str | None = Query(None, max_length=32, pattern="^[a-z._]*$"),
+    persona: str | None = Query(None, pattern="^(white|gray|black)?$"),
+    enabled: str | None = Query(None, pattern="^(true|false)?$"),
+    page: int = Query(1, ge=1, le=10_000),
+    size: int = Query(50, ge=1, le=200),
 ) -> HTMLResponse:
     tpl = request.app.state.templates
     stmt = select(Rule)
@@ -397,13 +467,19 @@ async def page_rules(
         stmt = stmt.where(Rule.phase == phase)
     if persona:
         stmt = stmt.where(Rule.personas.any(persona))   # type: ignore[attr-defined]
-    if enabled is not None:
+    if enabled:
         stmt = stmt.where(Rule.enabled.is_(enabled == "true"))
-    stmt = stmt.order_by(Rule.priority.desc(), Rule.rule_id).limit(500)
+    total = int((await session.execute(
+        select(func.count()).select_from(stmt.subquery())
+    )).scalar_one())
+    stmt = stmt.order_by(Rule.priority.desc(), Rule.rule_id) \
+               .limit(size).offset((page - 1) * size)
     rows = list((await session.execute(stmt)).scalars().all())
 
+    # P2 — cap the dropdown source to keep the response small even on
+    # exotic deployments with thousands of distinct phases.
     phases = [r[0] for r in (await session.execute(
-        select(Rule.phase).distinct().order_by(Rule.phase)
+        select(Rule.phase).distinct().order_by(Rule.phase).limit(200)
     )).all()]
 
     return tpl.TemplateResponse(
@@ -415,6 +491,11 @@ async def page_rules(
             "filter_phase": phase or "",
             "filter_persona": persona or "",
             "filter_enabled": enabled or "",
+            **_pagination(page=page, size=size, total=total,
+                          base_path="/ui/rules",
+                          extra={"phase": phase or "",
+                                 "persona": persona or "",
+                                 "enabled": enabled or ""}),
         },
     )
 
@@ -500,8 +581,10 @@ async def page_audit(
     stmt = stmt.order_by(desc(AuditLog.id)).limit(limit)
     rows = list((await session.execute(stmt)).scalars().all())
 
+    # P2 — bounded so a runaway scan with 10k unique events doesn't
+    # blow up the filter dropdown.
     events = [r[0] for r in (await session.execute(
-        select(AuditLog.event).distinct().order_by(AuditLog.event)
+        select(AuditLog.event).distinct().order_by(AuditLog.event).limit(200)
     )).all()]
 
     return tpl.TemplateResponse(
@@ -583,11 +666,10 @@ async def page_drift_detail(
 
 @router.post("/ui/drift/{target_id}/monitor", response_class=HTMLResponse, include_in_schema=False)
 async def submit_drift_monitor(
-    target_id: int, session: SessionDep, settings: SettingsDep,
+    target_id: int, request: Request, session: SessionDep, settings: SettingsDep,
     persona: str = Form("gray", min_length=1, max_length=16),
     # Bounds match the JSON API in app/api/routes/drift.py:73 — 60s ≤ x ≤ 7d.
     interval_seconds: int = Form(21_600, ge=60, le=604_800),
-    started_by: str = Form("ui", max_length=128),
 ) -> RedirectResponse:
     from app.services.temporal_orchestrator import get_orchestrator
     from app.workflows.continuous_monitor import MonitorInput
@@ -610,7 +692,7 @@ async def submit_drift_monitor(
             target_id=int(target.id),                       # type: ignore[arg-type]
             persona=persona_val.value,
             interval_seconds=int(interval_seconds),
-            started_by=started_by or "ui",
+            started_by=_started_by(request),
         ),
         id=f"monitor-{target.slug}",
         task_queue=settings.temporal_task_queue,

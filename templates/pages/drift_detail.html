@@ -21,11 +21,13 @@
       <input type="hidden" name="_csrf" value="{{ csrf_token(request) }}" />
       <label class="flex items-center gap-2">
         <span class="text-slate-400 text-xs">Persona</span>
-        <select name="persona" class="bg-slate-800 border border-slate-700 rounded px-2 py-1">
-          {% for p in personas %}
-            {% if p in target.allowed_personas %}
-              <option value="{{ p }}" {% if p == 'gray' %}selected{% endif %}>{{ p }}</option>
-            {% endif %}
+        {% set choices = personas | select('in', target.allowed_personas) | list %}
+        <select name="persona" required
+                class="bg-slate-800 border border-slate-700 rounded px-2 py-1">
+          {% for p in choices %}
+            <option value="{{ p }}" {% if p == 'gray' %}selected{% endif %}>{{ p }}</option>
+          {% else %}
+            <option disabled selected>(no personas allowed for this target)</option>
           {% endfor %}
         </select>
       </label>
@@ -34,12 +36,8 @@
         <input name="interval_seconds" type="number" min="60" max="604800" value="21600"
                class="bg-slate-800 border border-slate-700 rounded px-2 py-1 w-28" />
       </label>
-      <label class="flex items-center gap-2">
-        <span class="text-slate-400 text-xs">Started by</span>
-        <input name="started_by" type="text" value="ui"
-               class="bg-slate-800 border border-slate-700 rounded px-2 py-1 w-32" />
-      </label>
-      <button class="px-3 py-1.5 bg-emerald-600/80 hover:bg-emerald-500 text-white rounded text-xs">
+      <button {% if not (personas | select('in', target.allowed_personas) | list) %}disabled{% endif %}
+              class="px-3 py-1.5 bg-emerald-600/80 hover:bg-emerald-500 text-white rounded text-xs disabled:bg-slate-700 disabled:cursor-not-allowed">
         Start monitor
       </button>
     </form>

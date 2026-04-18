@@ -50,11 +50,9 @@
       </span>
     </label>
 
-    <label class="block">
-      <span class="text-xs text-slate-400 uppercase">Started by</span>
-      <input name="started_by" type="text" value="ui" maxlength="128"
-             class="mt-1 w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-sm" />
-    </label>
+    {# `started_by` is set server-side from the session, not the form,
+       so an authenticated operator cannot spoof another actor in the
+       audit log. #}
 
     <div class="flex items-center gap-3 pt-2">
       <button type="submit"

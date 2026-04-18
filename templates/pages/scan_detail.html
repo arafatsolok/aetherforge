@@ -37,11 +37,22 @@
   </div>
 
   <!-- Live audit log via SSE -->
-  <div class="rounded-xl border border-slate-800 overflow-hidden">
+  <div class="rounded-xl border border-slate-800 overflow-hidden"
+       x-data="{ sseState: 'connecting' }"
+       x-init="
+         $el.addEventListener('htmx:sseOpen',  () => sseState = 'live');
+         $el.addEventListener('htmx:sseError', () => sseState = 'disconnected');
+         $el.addEventListener('htmx:sseClose', () => sseState = 'closed');
+       ">
     <div class="px-4 py-2 bg-slate-900/80 text-xs uppercase tracking-wider text-slate-400 flex items-center gap-2">
       <span>Audit log</span>
-      <span class="ml-auto text-emerald-400 text-xs"
-            id="sse-status">live</span>
+      <span class="ml-auto text-xs"
+            :class="{
+              'text-emerald-400': sseState === 'live',
+              'text-amber-400':   sseState === 'connecting',
+              'text-rose-400':    sseState === 'disconnected' || sseState === 'closed'
+            }"
+            x-text="sseState"></span>
     </div>
     <div class="max-h-[420px] overflow-y-auto bg-slate-950 font-mono text-xs">
       <table class="w-full">
