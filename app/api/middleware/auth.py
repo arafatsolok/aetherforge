@@ -88,9 +88,25 @@ class APIKeyAuthMiddleware(BaseHTTPMiddleware):
             target = f"/ui/login?next={request.url.path}"
             return RedirectResponse(target, status_code=303)
 
-        # API routes: X-API-Key header is the only accepted credential.
+        # API routes:
+        #
+        # * UNSAFE methods (POST/PATCH/PUT/DELETE) — X-API-Key REQUIRED.
+        #   These come from machine clients; they MUST present the
+        #   header so a stolen browser session can never trigger
+        #   side-effects on the API.
+        #
+        # * SAFE methods (GET/HEAD) — accept either X-API-Key OR a
+        #   logged-in session cookie. This is what makes the
+        #   <a href="/api/v1/reports/3?fmt=pdf"> link in the dashboard
+        #   actually load when clicked, and what lets EventSource
+        #   subscribe to /api/v1/audit/scans/{id}/sse from the
+        #   browser. Cross-origin protection is provided by the
+        #   session cookie's ``SameSite=Strict`` attribute.
         if path.startswith("/api/"):
+            safe = method in ("GET", "HEAD", "OPTIONS")
             if _header_matches(request, api_key):
+                return await call_next(request)
+            if safe and _session_authenticated(request):
                 return await call_next(request)
             log.warning(
                 "auth.api.denied",

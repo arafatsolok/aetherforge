@@ -29,6 +29,23 @@ def _hello(_req):                                            # type: ignore[no-u
     return PlainTextResponse("hi")
 
 
+# Same secret + cookie name as the SessionMiddleware mounted in _app
+# below. We forge the cookie value directly so tests don't have to walk
+# through /ui/login (which itself sits behind the API-key gate when auth
+# is enabled).
+KEY = "test-key-bcdefghijklmnopqrstuvwx"          # 28 chars, ≥10 unique
+_SESSION_SECRET = "x" * 64
+_SESSION_COOKIE = "aetherforge_session"
+
+
+def _signed_session(payload: dict) -> str:
+    import itsdangerous
+    signer = itsdangerous.TimestampSigner(_SESSION_SECRET)
+    import base64, json
+    raw = base64.b64encode(json.dumps(payload).encode())
+    return signer.sign(raw).decode()
+
+
 def _settings(api_key: str | None) -> Settings:
     """Build a real Settings object — env mode 'development' so validators
     don't reject our short test key."""
@@ -47,8 +64,8 @@ def _app(api_key: str | None) -> Starlette:
         Route("/ui/login", _hello),
         Route("/ui/logout", _hello),
         Route("/ui/scans", _hello),
-        Route("/api/v1/rules", _hello),
-        Route("/api/v1/anything", _hello),
+        Route("/api/v1/rules",     _hello, methods=["GET", "HEAD", "POST"]),
+        Route("/api/v1/anything",  _hello, methods=["GET", "POST"]),
         Route("/static/x.css", _hello),
         Route("/wat", _hello),                               # unknown prefix
     ]
@@ -57,8 +74,8 @@ def _app(api_key: str | None) -> Starlette:
     app.add_middleware(APIKeyAuthMiddleware, settings=settings)
     app.add_middleware(
         SessionMiddleware,
-        secret_key="x" * 64,
-        session_cookie="aetherforge_session",
+        secret_key=_SESSION_SECRET,
+        session_cookie=_SESSION_COOKIE,
         same_site="strict",
         https_only=False,
         max_age=3600,
@@ -66,7 +83,12 @@ def _app(api_key: str | None) -> Starlette:
     return app
 
 
-KEY = "test-key-bcdefghijklmnopqrstuvwx"          # 28 chars, ≥10 unique
+def _client_with_session(api_key: str = KEY) -> TestClient:
+    """Return a TestClient pre-loaded with a valid signed session cookie."""
+    client = TestClient(_app(api_key))
+    client.cookies.set(_SESSION_COOKIE,
+                       _signed_session({"authenticated": True}))
+    return client
 
 
 # ---------------------------------------------------------------------------
@@ -105,6 +127,37 @@ class TestApiKeyGate:
     def test_unknown_prefix_also_protected(self) -> None:
         client = TestClient(_app(api_key=KEY))
         r = client.get("/wat")
+        assert r.status_code == 401
+
+
+@pytest.mark.unit
+class TestSafeApiViaSession:
+    """A logged-in browser session can hit GET/HEAD /api/* WITHOUT
+    sending X-API-Key. Unsafe verbs (POST/PATCH/DELETE) still require
+    the header — this is what makes the report-download links and
+    SSE audit stream work in the dashboard while keeping CSRF closed."""
+
+    def test_get_api_with_session_only_passes(self) -> None:
+        client = _client_with_session()
+        # No X-API-Key header — only the session cookie.
+        r = client.get("/api/v1/rules")
+        assert r.status_code == 200, f"got {r.status_code}: {r.text[:120]}"
+
+    def test_head_api_with_session_only_passes(self) -> None:
+        client = _client_with_session()
+        r = client.head("/api/v1/rules")
+        assert r.status_code == 200
+
+    def test_post_api_with_session_only_still_blocked(self) -> None:
+        """Defense in depth — a stolen browser session must NOT be able
+        to fire side-effects against the API."""
+        client = _client_with_session()
+        r = client.post("/api/v1/anything", data={"x": "1"})
+        assert r.status_code == 401
+
+    def test_get_without_session_or_key_still_blocked(self) -> None:
+        client = TestClient(_app(api_key=KEY))
+        r = client.get("/api/v1/rules")
         assert r.status_code == 401
 
 
