@@ -11,13 +11,25 @@ RUN apk add --no-cache git \
 
 FROM alpine:3.20
 
-RUN apk add --no-cache ca-certificates tini
+RUN apk add --no-cache ca-certificates tini curl
 
 COPY --from=builder /go/bin/ffuf /usr/local/bin/ffuf
 
+# ffuf needs a wordlist. Ship the SecLists curated set so every rule
+# that invokes ffuf has a known path (/wordlists/*.txt). We fetch only
+# the three most common lists (common, quickhits, raft-medium) to keep
+# the image <40 MB — the full SecLists tree is ~2 GB.
+RUN mkdir -p /wordlists \
+ && curl -fsSL -o /wordlists/common.txt \
+      https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/common.txt \
+ && curl -fsSL -o /wordlists/raft-medium-directories.txt \
+      https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/raft-medium-directories.txt \
+ && curl -fsSL -o /wordlists/quickhits.txt \
+      https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/quickhits.txt
+
 RUN addgroup -g 10110 -S scanner \
  && adduser  -u 10110 -G scanner -S -h /home/scanner scanner \
- && mkdir -p /output && chown scanner:scanner /output
+ && mkdir -p /output && chown scanner:scanner /output /wordlists
 
 USER scanner
 WORKDIR /home/scanner
